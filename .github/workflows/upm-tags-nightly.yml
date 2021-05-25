@@ -100,7 +100,7 @@ jobs:
           for submoduleFile in $SUBMODULE_FILES
           do
             echo "Moving file at path $GITHUB_WORKSPACE/theirRepo/$submoduleFile"
-            sudo mv -v "$GITHUB_WORKSPACE/theirRepo/$submoduleFile" "$GITHUB_WORKSPACE/myRepo/"
+            sudo mv -v "$GITHUB_WORKSPACE/theirRepo/$submoduleFile" "$GITHUB_WORKSPACE/myRepo/" || true
           done
           for submoduleParentFolder in $SUBMODULE_FOLDER_CONTENTS
           do
