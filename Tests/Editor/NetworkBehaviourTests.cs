@@ -316,7 +316,10 @@ namespace Mirror.Tests
                 isAuthenticated = true
             };
             connection.connectionToServer.connectionToClient = connection;
+
+            // host needs connection to both directions
             identity.connectionToClient = connection;
+            identity.connectionToServer = connection.connectionToServer;
 
             // calling command before client is connected shouldn't work
             // error log is expected
@@ -359,15 +362,19 @@ namespace Mirror.Tests
             // won't find it
             NetworkIdentity.spawned[identity.netId] = identity;
 
-            // calling command before clientscene has ready connection shouldn't work
+            // calling command if connection isn't ready should not work
             // error log is expected
             LogAssert.ignoreFailingMessages = true;
+            identity.connectionToServer.isReady = false;
             comp.CallSendCommandInternal();
             LogAssert.ignoreFailingMessages = false;
             Assert.That(comp.called, Is.EqualTo(0));
 
+            // reset ready
+            identity.connectionToServer.isReady = true;
+
             // clientscene.readyconnection needs to be set for commands
-            ClientScene.Ready(connection.connectionToServer);
+            NetworkClient.Ready(connection.connectionToServer);
 
             // call command
             comp.CallSendCommandInternal();
@@ -376,7 +383,6 @@ namespace Mirror.Tests
             // clean up
             RemoteCallHelper.RemoveDelegate(registeredHash);
             // clear clientscene.readyconnection
-            ClientScene.Shutdown();
             NetworkClient.Shutdown();
             NetworkServer.Shutdown();
             Transport.activeTransport = null;
@@ -458,7 +464,6 @@ namespace Mirror.Tests
             // clean up
             RemoteCallHelper.RemoveDelegate(registeredHash);
             // clear clientscene.readyconnection
-            ClientScene.Shutdown();
             NetworkServer.RemoveLocalConnection();
             NetworkClient.Shutdown();
             NetworkServer.Shutdown();
@@ -547,7 +552,6 @@ namespace Mirror.Tests
             // clean up
             RemoteCallHelper.RemoveDelegate(registeredHash);
             // clear clientscene.readyconnection
-            ClientScene.Shutdown();
             NetworkServer.RemoveLocalConnection();
             NetworkClient.Shutdown();
             NetworkServer.Shutdown();
