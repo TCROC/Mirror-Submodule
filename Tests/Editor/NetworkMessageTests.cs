@@ -17,14 +17,14 @@ namespace Mirror.Tests.MessageTests
 
         public void Deserialize(NetworkReader reader)
         {
-            IntValue = reader.ReadInt32();
+            IntValue = reader.ReadInt();
             StringValue = reader.ReadString();
             DoubleValue = reader.ReadDouble();
         }
 
         public void Serialize(NetworkWriter writer)
         {
-            writer.WriteInt32(IntValue);
+            writer.WriteInt(IntValue);
             writer.WriteString(StringValue);
             writer.WriteDouble(DoubleValue);
         }

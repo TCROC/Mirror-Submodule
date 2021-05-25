@@ -31,7 +31,7 @@ namespace Mirror.Tests
             // try serializing less than 32kb and see what happens
             NetworkWriter writer = new NetworkWriter();
             for (int i = 0; i < 30000 / 4; ++i)
-                writer.WriteInt32(i);
+                writer.WriteInt(i);
             Assert.That(writer.Position, Is.EqualTo(30000));
         }
 
@@ -41,7 +41,7 @@ namespace Mirror.Tests
             // try serializing more than 32kb and see what happens
             NetworkWriter writer = new NetworkWriter();
             for (int i = 0; i < 40000 / 4; ++i)
-                writer.WriteInt32(i);
+                writer.WriteInt(i);
             Assert.That(writer.Position, Is.EqualTo(40000));
         }
 
@@ -109,7 +109,7 @@ namespace Mirror.Tests
         {
             NetworkWriter writer = new NetworkWriter();
             writer.WriteString("I saw");
-            writer.WriteInt64(0xA_FADED_DEAD_EEL);
+            writer.WriteLong(0xA_FADED_DEAD_EEL);
             writer.WriteString("and ate it");
             writer.Reset();
 
@@ -157,15 +157,15 @@ namespace Mirror.Tests
             EnsureThrows(r => r.ReadByte());
             EnsureThrows(r => r.ReadSByte());
             EnsureThrows(r => r.ReadChar());
-            EnsureThrows(r => r.ReadBoolean());
-            EnsureThrows(r => r.ReadInt16());
-            EnsureThrows(r => r.ReadUInt16());
-            EnsureThrows(r => r.ReadInt32());
-            EnsureThrows(r => r.ReadUInt32());
-            EnsureThrows(r => r.ReadInt64());
-            EnsureThrows(r => r.ReadUInt64());
+            EnsureThrows(r => r.ReadBool());
+            EnsureThrows(r => r.ReadShort());
+            EnsureThrows(r => r.ReadUShort());
+            EnsureThrows(r => r.ReadInt());
+            EnsureThrows(r => r.ReadUInt());
+            EnsureThrows(r => r.ReadLong());
+            EnsureThrows(r => r.ReadULong());
             EnsureThrows(r => r.ReadDecimal());
-            EnsureThrows(r => r.ReadSingle());
+            EnsureThrows(r => r.ReadFloat());
             EnsureThrows(r => r.ReadDouble());
             EnsureThrows(r => r.ReadString());
             EnsureThrows(r => r.ReadBytes(1));
@@ -616,9 +616,9 @@ namespace Mirror.Tests
             foreach (float weird in weirdFloats)
             {
                 NetworkWriter writer = new NetworkWriter();
-                writer.WriteSingle(weird);
+                writer.WriteFloat(weird);
                 NetworkReader reader = new NetworkReader(writer.ToArray());
-                float readFloat = reader.ReadSingle();
+                float readFloat = reader.ReadFloat();
                 Assert.That(readFloat, Is.EqualTo(weird));
             }
         }
@@ -689,7 +689,7 @@ namespace Mirror.Tests
             NetworkWriter writer = new NetworkWriter();
             foreach (float weird in weirdFloats)
             {
-                writer.WriteSingle(weird);
+                writer.WriteFloat(weird);
             }
             Assert.That(writer.ToArray(), Is.EqualTo(expected));
         }
@@ -756,7 +756,7 @@ namespace Mirror.Tests
             NetworkWriter writer = new NetworkWriter();
             foreach (ushort value in values)
             {
-                writer.WriteUInt16(value);
+                writer.WriteUShort(value);
             }
             Assert.That(writer.ToArray(), Is.EqualTo(expected));
         }
@@ -769,7 +769,7 @@ namespace Mirror.Tests
             NetworkWriter writer = new NetworkWriter();
             foreach (uint value in values)
             {
-                writer.WriteUInt32(value);
+                writer.WriteUInt(value);
             }
             Assert.That(writer.ToArray(), Is.EqualTo(expected));
         }
@@ -782,7 +782,7 @@ namespace Mirror.Tests
             NetworkWriter writer = new NetworkWriter();
             foreach (ulong value in values)
             {
-                writer.WriteUInt64(value);
+                writer.WriteULong(value);
             }
             Assert.That(writer.ToArray(), Is.EqualTo(expected));
         }
@@ -808,7 +808,7 @@ namespace Mirror.Tests
             NetworkWriter writer = new NetworkWriter();
             foreach (ushort value in values)
             {
-                writer.WriteInt16((short)value);
+                writer.WriteShort((short)value);
             }
             Assert.That(writer.ToArray(), Is.EqualTo(expected));
         }
@@ -821,7 +821,7 @@ namespace Mirror.Tests
             NetworkWriter writer = new NetworkWriter();
             foreach (uint value in values)
             {
-                writer.WriteInt32((int)value);
+                writer.WriteInt((int)value);
             }
             Assert.That(writer.ToArray(), Is.EqualTo(expected));
         }
@@ -834,7 +834,7 @@ namespace Mirror.Tests
             NetworkWriter writer = new NetworkWriter();
             foreach (ulong value in values)
             {
-                writer.WriteInt64((long)value);
+                writer.WriteLong((long)value);
             }
             Assert.That(writer.ToArray(), Is.EqualTo(expected));
         }
@@ -847,14 +847,14 @@ namespace Mirror.Tests
             writer.WriteChar((char)1);
             writer.WriteByte(2);
             writer.WriteSByte(3);
-            writer.WriteBoolean(true);
-            writer.WriteInt16(4);
-            writer.WriteUInt16(5);
-            writer.WriteInt32(6);
-            writer.WriteUInt32(7U);
-            writer.WriteInt64(8L);
-            writer.WriteUInt64(9UL);
-            writer.WriteSingle(10.0F);
+            writer.WriteBool(true);
+            writer.WriteShort(4);
+            writer.WriteUShort(5);
+            writer.WriteInt(6);
+            writer.WriteUInt(7U);
+            writer.WriteLong(8L);
+            writer.WriteULong(9UL);
+            writer.WriteFloat(10.0F);
             writer.WriteDouble(11.0D);
             writer.WriteDecimal(12);
             writer.WriteString(null);
@@ -877,14 +877,14 @@ namespace Mirror.Tests
             Assert.That(reader.ReadChar(), Is.EqualTo(1));
             Assert.That(reader.ReadByte(), Is.EqualTo(2));
             Assert.That(reader.ReadSByte(), Is.EqualTo(3));
-            Assert.That(reader.ReadBoolean(), Is.True);
-            Assert.That(reader.ReadInt16(), Is.EqualTo(4));
-            Assert.That(reader.ReadUInt16(), Is.EqualTo(5));
-            Assert.That(reader.ReadInt32(), Is.EqualTo(6));
-            Assert.That(reader.ReadUInt32(), Is.EqualTo(7));
-            Assert.That(reader.ReadInt64(), Is.EqualTo(8));
-            Assert.That(reader.ReadUInt64(), Is.EqualTo(9));
-            Assert.That(reader.ReadSingle(), Is.EqualTo(10));
+            Assert.That(reader.ReadBool(), Is.True);
+            Assert.That(reader.ReadShort(), Is.EqualTo(4));
+            Assert.That(reader.ReadUShort(), Is.EqualTo(5));
+            Assert.That(reader.ReadInt(), Is.EqualTo(6));
+            Assert.That(reader.ReadUInt(), Is.EqualTo(7));
+            Assert.That(reader.ReadLong(), Is.EqualTo(8));
+            Assert.That(reader.ReadULong(), Is.EqualTo(9));
+            Assert.That(reader.ReadFloat(), Is.EqualTo(10));
             Assert.That(reader.ReadDouble(), Is.EqualTo(11));
             Assert.That(reader.ReadDecimal(), Is.EqualTo(12));
             // writing null string should write null in Mirror ("" in original HLAPI)
@@ -956,7 +956,7 @@ namespace Mirror.Tests
 
             void WriteGoodArray()
             {
-                writer.WriteInt32(testArraySize);
+                writer.WriteInt(testArraySize);
                 int[] array = new int[testArraySize] { 1, 2, 3, 4 };
                 for (int i = 0; i < array.Length; i++)
                     writer.Write(array[i]);
@@ -982,7 +982,7 @@ namespace Mirror.Tests
 
             void WriteBadArray()
             {
-                writer.WriteInt32(badLength);
+                writer.WriteInt(badLength);
                 int[] array = new int[testArraySize] { 1, 2, 3, 4 };
                 for (int i = 0; i < array.Length; i++)
                     writer.Write(array[i]);
@@ -1010,7 +1010,7 @@ namespace Mirror.Tests
 
             void WriteBadArray()
             {
-                writer.WriteInt32(badLength);
+                writer.WriteInt(badLength);
                 int[] array = new int[testArraySize] { 1, 2, 3, 4 };
                 for (int i = 0; i < array.Length; i++)
                     writer.Write(array[i]);

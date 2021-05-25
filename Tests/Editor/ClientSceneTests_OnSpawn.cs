@@ -18,7 +18,7 @@ namespace Mirror.Tests.ClientSceneTests
         {
             base.OnSerialize(writer, initialState);
 
-            writer.WriteInt32(value);
+            writer.WriteInt(value);
             writer.WriteVector3(direction);
 
             OnSerializeCalled?.Invoke();
@@ -29,7 +29,7 @@ namespace Mirror.Tests.ClientSceneTests
         {
             base.OnDeserialize(reader, initialState);
 
-            value = reader.ReadInt32();
+            value = reader.ReadInt();
             direction = reader.ReadVector3();
 
             OnDeserializeCalled?.Invoke();

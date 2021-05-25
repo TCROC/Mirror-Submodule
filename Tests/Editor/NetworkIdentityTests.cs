@@ -126,12 +126,12 @@ namespace Mirror.Tests
             public int value;
             public override bool OnSerialize(NetworkWriter writer, bool initialState)
             {
-                writer.WriteInt32(value);
+                writer.WriteInt(value);
                 return true;
             }
             public override void OnDeserialize(NetworkReader reader, bool initialState)
             {
-                value = reader.ReadInt32();
+                value = reader.ReadInt();
             }
         }
 
@@ -166,14 +166,14 @@ namespace Mirror.Tests
             public int value;
             public override bool OnSerialize(NetworkWriter writer, bool initialState)
             {
-                writer.WriteInt32(value);
+                writer.WriteInt(value);
                 // one too many
-                writer.WriteInt32(value);
+                writer.WriteInt(value);
                 return true;
             }
             public override void OnDeserialize(NetworkReader reader, bool initialState)
             {
-                value = reader.ReadInt32();
+                value = reader.ReadInt();
             }
         }
 

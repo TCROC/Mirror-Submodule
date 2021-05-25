@@ -23,14 +23,14 @@ namespace Mirror.Tests
 
         public void Deserialize(NetworkReader reader)
         {
-            IntValue = reader.ReadInt32();
+            IntValue = reader.ReadInt();
             StringValue = reader.ReadString();
             DoubleValue = reader.ReadDouble();
         }
 
         public void Serialize(NetworkWriter writer)
         {
-            writer.WriteInt32(IntValue);
+            writer.WriteInt(IntValue);
             writer.WriteString(StringValue);
             writer.WriteDouble(DoubleValue);
         }
@@ -651,14 +651,8 @@ namespace Mirror.Tests
         public void ActivateHostSceneCallsOnStartClient()
         {
             // add an identity with a networkbehaviour to .spawned
-            GameObject go = new GameObject();
-            NetworkIdentity identity = go.AddComponent<NetworkIdentity>();
+            TestUtils.CreateNetworked(out GameObject go, out NetworkIdentity identity, out OnStartClientTestNetworkBehaviour comp);
             identity.netId = 42;
-            // for authority check
-            //identity.connectionToClient = connection;
-            OnStartClientTestNetworkBehaviour comp = go.AddComponent<OnStartClientTestNetworkBehaviour>();
-            Assert.That(comp.called, Is.EqualTo(0));
-            //connection.identity = identity;
             NetworkIdentity.spawned[identity.netId] = identity;
 
             // ActivateHostScene
