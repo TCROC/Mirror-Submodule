@@ -1,7 +1,9 @@
 {
-    "name": "Mirror.Tests.Common",
+    "name": "Mirror.Tests.Runtime",
     "references": [
-        "Mirror"
+        "Mirror",
+        "Mirror.Components",
+        "Mirror.Tests.Common"
     ],
     "optionalUnityReferences": [
         "TestAssemblies"

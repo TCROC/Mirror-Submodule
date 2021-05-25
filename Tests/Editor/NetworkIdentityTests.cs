@@ -305,6 +305,9 @@ namespace Mirror.Tests
         [TearDown]
         public void TearDown()
         {
+            // set isServer is false. otherwise Destroy instead of
+            // DestroyImmediate is called internally, giving an error in Editor
+            identity.isServer = false;
             GameObject.DestroyImmediate(gameObject);
         }
 
@@ -565,9 +568,6 @@ namespace Mirror.Tests
         [Test]
         public void AssignAndRemoveClientAuthority()
         {
-            // netId is needed for isServer to be true
-            identity.netId = 42;
-
             // test the callback too
             int callbackCalled = 0;
             NetworkConnection callbackConnection = null;
@@ -599,11 +599,12 @@ namespace Mirror.Tests
             LogAssert.ignoreFailingMessages = false;
             Assert.That(result, Is.False);
 
-            // we can only handle authority on the server.
-            // start the server so that isServer is true.
-            // needed in .Listen
+            // server is needed
             Transport.activeTransport = Substitute.For<Transport>();
             NetworkServer.Listen(1);
+
+            // call OnStartServer so that isServer is true
+            identity.OnStartServer();
             Assert.That(identity.isServer, Is.True);
 
             // assign authority
@@ -641,15 +642,17 @@ namespace Mirror.Tests
 
             // removing authority while not isServer shouldn't work.
             // only allow it on server.
-            NetworkServer.Shutdown();
+            identity.isServer = false;
+
             // error log is expected
             LogAssert.ignoreFailingMessages = true;
             identity.RemoveClientAuthority();
             LogAssert.ignoreFailingMessages = false;
             Assert.That(identity.connectionToClient, Is.EqualTo(owner));
             Assert.That(callbackCalled, Is.EqualTo(1));
-            // restart it gain
-            NetworkServer.Listen(1);
+
+            // enable isServer again
+            identity.isServer = true;
 
             // removing authority for the main player object shouldn't work
             // set connection's player object
