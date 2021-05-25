@@ -1,10 +1,31 @@
 ﻿using System;
+using System.Collections.Generic;
 using NSubstitute;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace Mirror.Tests
 {
+    public class CommandTestNetworkBehaviour : NetworkBehaviour
+    {
+        // counter to make sure that it's called exactly once
+        public int called;
+        // weaver generates this from [Command]
+        // but for tests we need to add it manually
+        public static void CommandGenerated(NetworkBehaviour comp, NetworkReader reader)
+        {
+            ++((CommandTestNetworkBehaviour)comp).called;
+        }
+    }
+
+    public class OnStartClientTestNetworkBehaviour : NetworkBehaviour
+    {
+        // counter to make sure that it's called exactly once
+        public int called;
+        public override void OnStartClient() { ++called; }
+    }
+
     [TestFixture]
     public class NetworkServerTest
     {
@@ -18,6 +39,9 @@ namespace Mirror.Tests
         public void TearDown()
         {
             Transport.activeTransport = null;
+
+            // reset all state
+            NetworkServer.Shutdown();
         }
 
         [Test]
@@ -136,6 +160,63 @@ namespace Mirror.Tests
         }
 
         [Test]
+        public void OnConnectedOnlyAllowsGreaterZeroConnectionIdsTest()
+        {
+            // OnConnected should only allow connectionIds >= 0
+            // 0 is for local player
+            // <0 is never used
+
+            // message handlers
+            NetworkServer.RegisterHandler<ConnectMessage>((conn, msg) => {}, false);
+            NetworkServer.RegisterHandler<DisconnectMessage>((conn, msg) => {}, false);
+            NetworkServer.RegisterHandler<ErrorMessage>((conn, msg) => {}, false);
+
+            // listen
+            NetworkServer.Listen(2);
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(0));
+
+            // connect 0
+            // (it will show an error message, which is expected)
+            LogAssert.ignoreFailingMessages = true;
+            Transport.activeTransport.OnServerConnected.Invoke(0);
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(0));
+
+            // connect <0
+            Transport.activeTransport.OnServerConnected.Invoke(-1);
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(0));
+            LogAssert.ignoreFailingMessages = false;
+
+            // shutdown
+            NetworkServer.Shutdown();
+        }
+
+        [Test]
+        public void ConnectDuplicateConnectionIdsTest()
+        {
+            // message handlers
+            NetworkServer.RegisterHandler<ConnectMessage>((conn, msg) => {}, false);
+            NetworkServer.RegisterHandler<DisconnectMessage>((conn, msg) => {}, false);
+            NetworkServer.RegisterHandler<ErrorMessage>((conn, msg) => {}, false);
+
+            // listen
+            NetworkServer.Listen(2);
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(0));
+
+            // connect first
+            Transport.activeTransport.OnServerConnected.Invoke(42);
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(1));
+            NetworkConnectionToClient original = NetworkServer.connections[42];
+
+            // connect duplicate - shouldn't overwrite first one
+            Transport.activeTransport.OnServerConnected.Invoke(42);
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(1));
+            Assert.That(NetworkServer.connections[42], Is.EqualTo(original));
+
+            // shutdown
+            NetworkServer.Shutdown();
+        }
+
+        [Test]
         public void SetLocalConnectionTest()
         {
             // listen
@@ -145,6 +226,14 @@ namespace Mirror.Tests
             ULocalConnectionToClient localConnection = new ULocalConnectionToClient();
             NetworkServer.SetLocalConnection(localConnection);
             Assert.That(NetworkServer.localConnection, Is.EqualTo(localConnection));
+
+            // try to overwrite it, which should not work
+            // (it will show an error message, which is expected)
+            LogAssert.ignoreFailingMessages = true;
+            ULocalConnectionToClient overwrite = new ULocalConnectionToClient();
+            NetworkServer.SetLocalConnection(overwrite);
+            Assert.That(NetworkServer.localConnection, Is.EqualTo(localConnection));
+            LogAssert.ignoreFailingMessages = false;
 
             // shutdown
             NetworkServer.Shutdown();
@@ -314,6 +403,312 @@ namespace Mirror.Tests
             Assert.That(NetworkServer.localConnection, Is.Null);
 
             // shutdown
+            NetworkServer.Shutdown();
+        }
+
+        [Test]
+        public void OnDataReceivedTest()
+        {
+            // message handlers
+            NetworkServer.RegisterHandler<ConnectMessage>((conn, msg) => {}, false);
+            NetworkServer.RegisterHandler<DisconnectMessage>((conn, msg) => {}, false);
+            NetworkServer.RegisterHandler<ErrorMessage>((conn, msg) => {}, false);
+
+            // add one custom message handler
+            bool wasReceived = false;
+            NetworkConnection connectionReceived = null;
+            TestMessage messageReceived = new TestMessage();
+            NetworkServer.RegisterHandler<TestMessage>((conn, msg) => {
+                wasReceived = true;
+                connectionReceived = conn;
+                messageReceived = msg;
+            }, false);
+
+            // listen
+            NetworkServer.Listen(1);
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(0));
+
+            // add a connection
+            NetworkConnectionToClient connection = new NetworkConnectionToClient(42);
+            NetworkServer.AddConnection(connection);
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(1));
+
+            // serialize a test message into an arraysegment
+            TestMessage testMessage = new TestMessage{IntValue = 13, DoubleValue = 14, StringValue = "15"};
+            NetworkWriter writer = new NetworkWriter();
+            MessagePacker.Pack(testMessage, writer);
+            ArraySegment<byte> segment = writer.ToArraySegment();
+
+            // call transport.OnDataReceived
+            // -> should call NetworkServer.OnDataReceived
+            //    -> conn.TransportReceive
+            //       -> Handler(CommandMessage)
+            Transport.activeTransport.OnServerDataReceived.Invoke(42, segment, 0);
+
+            // was our message handler called now?
+            Assert.That(wasReceived, Is.True);
+            Assert.That(connectionReceived, Is.EqualTo(connection));
+            Assert.That(messageReceived, Is.EqualTo(testMessage));
+
+            // shutdown
+            NetworkServer.Shutdown();
+        }
+
+        [Test]
+        public void OnDataReceivedInvalidConnectionIdTest()
+        {
+            // message handlers
+            NetworkServer.RegisterHandler<ConnectMessage>((conn, msg) => {}, false);
+            NetworkServer.RegisterHandler<DisconnectMessage>((conn, msg) => {}, false);
+            NetworkServer.RegisterHandler<ErrorMessage>((conn, msg) => {}, false);
+
+            // add one custom message handler
+            bool wasReceived = false;
+            NetworkConnection connectionReceived = null;
+            TestMessage messageReceived = new TestMessage();
+            NetworkServer.RegisterHandler<TestMessage>((conn, msg) => {
+                wasReceived = true;
+                connectionReceived = conn;
+                messageReceived = msg;
+            }, false);
+
+            // listen
+            NetworkServer.Listen(1);
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(0));
+
+            // serialize a test message into an arraysegment
+            TestMessage testMessage = new TestMessage{IntValue = 13, DoubleValue = 14, StringValue = "15"};
+            NetworkWriter writer = new NetworkWriter();
+            MessagePacker.Pack(testMessage, writer);
+            ArraySegment<byte> segment = writer.ToArraySegment();
+
+            // call transport.OnDataReceived with an invalid connectionId
+            // an error log is expected.
+            LogAssert.ignoreFailingMessages = true;
+            Transport.activeTransport.OnServerDataReceived.Invoke(42, segment, 0);
+            LogAssert.ignoreFailingMessages = false;
+
+            // message handler should never be called
+            Assert.That(wasReceived, Is.False);
+            Assert.That(connectionReceived, Is.Null);
+
+            // shutdown
+            NetworkServer.Shutdown();
+        }
+
+        [Test]
+        public void SetClientReadyAndNotReadyTest()
+        {
+            ULocalConnectionToClient connection = new ULocalConnectionToClient();
+            connection.connectionToServer = new ULocalConnectionToServer();
+            Assert.That(connection.isReady, Is.False);
+
+            NetworkServer.SetClientReady(connection);
+            Assert.That(connection.isReady, Is.True);
+
+            NetworkServer.SetClientNotReady(connection);
+            Assert.That(connection.isReady, Is.False);
+        }
+
+        [Test]
+        public void SetAllClientsNotReadyTest()
+        {
+            // add first ready client
+            ULocalConnectionToClient first = new ULocalConnectionToClient();
+            first.connectionToServer = new ULocalConnectionToServer();
+            first.isReady = true;
+            NetworkServer.connections[42] = first;
+
+            // add second ready client
+            ULocalConnectionToClient second = new ULocalConnectionToClient();
+            second.connectionToServer = new ULocalConnectionToServer();
+            second.isReady = true;
+            NetworkServer.connections[43] = second;
+
+            // set all not ready
+            NetworkServer.SetAllClientsNotReady();
+            Assert.That(first.isReady, Is.False);
+            Assert.That(second.isReady, Is.False);
+        }
+
+        [Test]
+        public void ReadyMessageSetsClientReadyTest()
+        {
+            // listen
+            NetworkServer.Listen(1);
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(0));
+
+            // add connection
+            ULocalConnectionToClient connection = new ULocalConnectionToClient();
+            connection.connectionToServer = new ULocalConnectionToServer();
+            NetworkServer.AddConnection(connection);
+
+            // set as authenticated, otherwise readymessage is rejected
+            connection.isAuthenticated = true;
+
+            // serialize a ready message into an arraysegment
+            ReadyMessage message = new ReadyMessage();
+            NetworkWriter writer = new NetworkWriter();
+            MessagePacker.Pack(message, writer);
+            ArraySegment<byte> segment = writer.ToArraySegment();
+
+            // call transport.OnDataReceived with the message
+            // -> calls NetworkServer.OnClientReadyMessage
+            //    -> calls SetClientReady(conn)
+            Transport.activeTransport.OnServerDataReceived.Invoke(0, segment, 0);
+
+            // ready?
+            Assert.That(connection.isReady, Is.True);
+
+            // shutdown
+            NetworkServer.Shutdown();
+        }
+
+        // this runs a command all the way:
+        //   byte[]->transport->server->identity->component
+        [Test]
+        public void CommandMessageCallsCommandTest()
+        {
+            // listen
+            NetworkServer.Listen(1);
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(0));
+
+            // add connection
+            ULocalConnectionToClient connection = new ULocalConnectionToClient();
+            connection.connectionToServer = new ULocalConnectionToServer();
+            NetworkServer.AddConnection(connection);
+
+            // set as authenticated, otherwise removeplayer is rejected
+            connection.isAuthenticated = true;
+
+            // add an identity with two networkbehaviour components
+            GameObject go = new GameObject();
+            NetworkIdentity identity = go.AddComponent<NetworkIdentity>();
+            identity.netId = 42;
+            identity.connectionToClient = connection; // for authority check
+            CommandTestNetworkBehaviour comp0 = go.AddComponent<CommandTestNetworkBehaviour>();
+            Assert.That(comp0.called, Is.EqualTo(0));
+            CommandTestNetworkBehaviour comp1 = go.AddComponent<CommandTestNetworkBehaviour>();
+            Assert.That(comp1.called, Is.EqualTo(0));
+            connection.identity = identity;
+
+            // register the command delegate, otherwise it's not found
+            NetworkBehaviour.RegisterCommandDelegate(typeof(CommandTestNetworkBehaviour), nameof(CommandTestNetworkBehaviour.CommandGenerated), CommandTestNetworkBehaviour.CommandGenerated);
+
+            // identity needs to be in spawned dict, otherwise command handler
+            // won't find it
+            NetworkIdentity.spawned[identity.netId] = identity;
+
+            // serialize a removeplayer message into an arraysegment
+            CommandMessage message = new CommandMessage {
+                componentIndex = 0,
+                functionHash = NetworkBehaviour.GetMethodHash(typeof(CommandTestNetworkBehaviour), nameof(CommandTestNetworkBehaviour.CommandGenerated)),
+                netId = identity.netId,
+                payload = new ArraySegment<byte>(new byte[0])
+            };
+            NetworkWriter writer = new NetworkWriter();
+            MessagePacker.Pack(message, writer);
+            ArraySegment<byte> segment = writer.ToArraySegment();
+
+            // call transport.OnDataReceived with the message
+            // -> calls NetworkServer.OnRemovePlayerMessage
+            //    -> destroys conn.identity and sets it to null
+            Transport.activeTransport.OnServerDataReceived.Invoke(0, segment, 0);
+
+            // was the command called in the first component, not in the second one?
+            Assert.That(comp0.called, Is.EqualTo(1));
+            Assert.That(comp1.called, Is.EqualTo(0));
+
+            //  send another command for the second component
+            comp0.called = 0;
+            message.componentIndex = 1;
+            writer = new NetworkWriter();
+            MessagePacker.Pack(message, writer);
+            segment = writer.ToArraySegment();
+            Transport.activeTransport.OnServerDataReceived.Invoke(0, segment, 0);
+
+            // was the command called in the second component, not in the first one?
+            Assert.That(comp0.called, Is.EqualTo(0));
+            Assert.That(comp1.called, Is.EqualTo(1));
+
+            // clean up
+            NetworkIdentity.spawned.Clear();
+            NetworkBehaviour.ClearDelegates();
+            NetworkServer.Shutdown();
+            // destroy the test gameobject AFTER server was stopped.
+            // otherwise isServer is true in OnDestroy, which means it would try
+            // to call Destroy(go). but we need to use DestroyImmediate in
+            // Editor
+            GameObject.DestroyImmediate(go);
+        }
+
+        [Test]
+        public void ActivateHostSceneCallsOnStartClient()
+        {
+            // add an identity with a networkbehaviour to .spawned
+            GameObject go = new GameObject();
+            NetworkIdentity identity = go.AddComponent<NetworkIdentity>();
+            identity.netId = 42;
+            //identity.connectionToClient = connection; // for authority check
+            OnStartClientTestNetworkBehaviour comp = go.AddComponent<OnStartClientTestNetworkBehaviour>();
+            Assert.That(comp.called, Is.EqualTo(0));
+            //connection.identity = identity;
+            NetworkIdentity.spawned[identity.netId] = identity;
+
+            // ActivateHostScene
+            NetworkServer.ActivateHostScene();
+
+            // was OnStartClient called for all .spawned networkidentities?
+            Assert.That(comp.called, Is.EqualTo(1));
+
+            // clean up
+            NetworkIdentity.spawned.Clear();
+            NetworkServer.Shutdown();
+            // destroy the test gameobject AFTER server was stopped.
+            // otherwise isServer is true in OnDestroy, which means it would try
+            // to call Destroy(go). but we need to use DestroyImmediate in
+            // Editor
+            GameObject.DestroyImmediate(go);
+        }
+
+        [Test]
+        public void SendToAllTest()
+        {
+            // message handlers
+            NetworkServer.RegisterHandler<ConnectMessage>((conn, msg) => {}, false);
+            NetworkServer.RegisterHandler<DisconnectMessage>((conn, msg) => {}, false);
+            NetworkServer.RegisterHandler<ErrorMessage>((conn, msg) => {}, false);
+
+            // listen
+            NetworkServer.Listen(1);
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(0));
+
+            // add connection
+            ULocalConnectionToClient connection = new ULocalConnectionToClient();
+            connection.connectionToServer = new ULocalConnectionToServer();
+            // set a client handler
+            int called = 0;
+            TestMessage received = new TestMessage();
+            connection.connectionToServer.SetHandlers(new Dictionary<int,NetworkMessageDelegate>()
+            {
+                { MessagePacker.GetId<TestMessage>(), (msg => ++called) }
+            });
+            NetworkServer.AddConnection(connection);
+
+            // create a message
+            TestMessage message = new TestMessage{ IntValue = 1, DoubleValue = 2, StringValue = "3" };
+
+            // send it to all
+            bool result = NetworkServer.SendToAll(message);
+            Assert.That(result, Is.True);
+
+            // update local connection once so that the incoming queue is processed
+            connection.connectionToServer.Update();
+
+            // was it send to and handled by the connection?
+            Assert.That(called, Is.EqualTo(1));
+
+            // clean up
             NetworkServer.Shutdown();
         }
 
