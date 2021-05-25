@@ -1138,6 +1138,7 @@ namespace Mirror.Tests
             Assert.That(comp0.called, Is.EqualTo(1));
 
             // clean up
+            NetworkBehaviour.ClearDelegates();
             NetworkIdentity.spawned.Clear();
             NetworkBehaviour.ClearDelegates();
         }
@@ -1481,6 +1482,52 @@ namespace Mirror.Tests
             Transport.activeTransport = null;
         }
 
+        // RebuildObservers is complex. let's do one full test where we check
+        // add, remove and vislist.
+        [Test]
+        public void RebuildObserversAddRemoveAndVisListTest()
+        {
+            // AddObserver will call transport.send and validpacketsize, so we
+            // actually need a transport
+            Transport.activeTransport = new MemoryTransport();
+
+            // add observer component with ready observer
+            RebuildObserversNetworkBehaviour comp = gameObject.AddComponent<RebuildObserversNetworkBehaviour>();
+            NetworkConnectionToClient observerA = new NetworkConnectionToClient(42){ isReady = true };
+            comp.observer = observerA;
+
+            // call OnStartServer so that observers dict is created
+            identity.OnStartServer();
+
+            // rebuild observers should add that one observer
+            identity.RebuildObservers(true);
+            Assert.That(identity.observers.Count, Is.EqualTo(1));
+            Assert.That(identity.observers.ContainsKey(observerA.connectionId));
+
+            // identity should have added itself to the observer's visList
+            Assert.That(observerA.visList.Count, Is.EqualTo(1));
+            Assert.That(observerA.visList.Contains(identity), Is.True);
+
+            // let the component find another observer
+            NetworkConnectionToClient observerB = new NetworkConnectionToClient(43){ isReady = true };
+            comp.observer = observerB;
+
+            // rebuild observers should remove the old observer and add the new one
+            identity.RebuildObservers(true);
+            Assert.That(identity.observers.Count, Is.EqualTo(1));
+            Assert.That(identity.observers.ContainsKey(observerB.connectionId));
+
+            // identity should have removed itself from the old observer's visList
+            // and added itself to new observer's vislist
+            Assert.That(observerA.visList.Count, Is.EqualTo(0));
+            Assert.That(observerB.visList.Count, Is.EqualTo(1));
+            Assert.That(observerB.visList.Contains(identity), Is.True);
+
+            // clean up
+            NetworkServer.Shutdown();
+            Transport.activeTransport = null;
+        }
+
         [Test]
         public void RebuildObserversSetsHostVisibility()
         {
@@ -1508,6 +1555,18 @@ namespace Mirror.Tests
             // clean up
             NetworkServer.RemoveLocalConnection();
             NetworkServer.Shutdown();
+        }
+
+        [Test]
+        public void RebuildObserversReturnsIfNull()
+        {
+            // add a server connection
+            NetworkServer.connections[12] = new NetworkConnectionToClient(12){isReady = true};
+
+            // call RebuildObservers without calling OnStartServer first.
+            // .observers will be null and it should simply return early.
+            identity.RebuildObservers(true);
+            Assert.That(identity.observers, Is.Null);
         }
     }
 }
