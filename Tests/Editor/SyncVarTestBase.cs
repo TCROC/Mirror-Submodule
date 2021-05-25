@@ -1,6 +1,5 @@
 using System;
 using NUnit.Framework;
-using UnityEngine;
 
 namespace Mirror.Tests
 {
@@ -11,15 +10,6 @@ namespace Mirror.Tests
         {
             NetworkIdentity.spawned.Clear();
             base.TearDown();
-        }
-
-        // TODO remove
-        protected NetworkIdentity CreateNetworkIdentity(uint netId)
-        {
-            CreateNetworked(out GameObject gameObject, out NetworkIdentity networkIdentity);
-            networkIdentity.netId = netId;
-            NetworkIdentity.spawned[netId] = networkIdentity;
-            return networkIdentity;
         }
 
         /// <returns>If data was written by OnSerialize</returns>
