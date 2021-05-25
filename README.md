@@ -1,4 +1,4 @@
-# Ignorance-Submodule
+# Mirror-Submodule
 
 This repository formats tags nightly from the Ignorance repository here: https://github.com/vis2k/Mirror so that they can be added as a submodule to a Unity project.  To add it to your project, use this template of commands:
 
