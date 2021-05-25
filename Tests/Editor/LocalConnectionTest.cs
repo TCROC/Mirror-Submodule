@@ -11,7 +11,7 @@ namespace Mirror.Tests
         LocalConnectionToServer connectionToServer;
 
         [SetUp]
-        public void SetUpConnections()
+        public void SetUp()
         {
             connectionToServer = new LocalConnectionToServer();
             connectionToClient = new LocalConnectionToClient();
@@ -21,13 +21,13 @@ namespace Mirror.Tests
         }
 
         [TearDown]
-        public void Disconnect()
+        public void TearDown()
         {
             connectionToServer.Disconnect();
         }
 
         [Test]
-        public void ServerToClient()
+        public void ClientToServerTest()
         {
             Assert.That(connectionToClient.address, Is.EqualTo("localhost"));
 
@@ -37,19 +37,19 @@ namespace Mirror.Tests
                 invoked = true;
             }
 
+            // set up handler on the server connection
             Dictionary<ushort, NetworkMessageDelegate> handlers = new Dictionary<ushort, NetworkMessageDelegate>();
             handlers.Add(MessagePacking.GetId<TestMessage>(), Handler);
-
             connectionToClient.SetHandlers(handlers);
-            connectionToServer.Send(new TestMessage());
 
+            connectionToServer.Send(new TestMessage());
             connectionToServer.Update();
 
             Assert.True(invoked, "handler should have been invoked");
         }
 
         [Test]
-        public void ClientToServerTest()
+        public void ServerToClient()
         {
             Assert.That(connectionToServer.address, Is.EqualTo("localhost"));
 
@@ -59,12 +59,12 @@ namespace Mirror.Tests
                 invoked = true;
             }
 
+            // set up handler on the client connection
             Dictionary<ushort, NetworkMessageDelegate> handlers = new Dictionary<ushort, NetworkMessageDelegate>();
             handlers.Add(MessagePacking.GetId<TestMessage>(), Handler);
-
             connectionToServer.SetHandlers(handlers);
-            connectionToClient.Send(new TestMessage());
 
+            connectionToClient.Send(new TestMessage());
             connectionToServer.Update();
 
             Assert.True(invoked, "handler should have been invoked");

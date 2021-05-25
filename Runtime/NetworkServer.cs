@@ -1411,8 +1411,9 @@ namespace Mirror
 
         // NetworkLateUpdate called after any Update/FixedUpdate/LateUpdate
         // (we add this to the UnityEngine in NetworkLoop)
-        static List<NetworkConnectionToClient> connectionsCopy =
+        static readonly List<NetworkConnectionToClient> connectionsCopy =
             new List<NetworkConnectionToClient>();
+
         internal static void NetworkLateUpdate()
         {
             // only process spawned & connections if active
