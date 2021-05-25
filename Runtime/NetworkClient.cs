@@ -207,34 +207,19 @@ namespace Mirror
         /// <summary>Disconnect from server.</summary>
         public static void Disconnect()
         {
+            // only if connected or connecting
+            if (connectState == ConnectState.Disconnected) return;
+
+            // TODO move to 'cleanup' code below if safe
             connectState = ConnectState.Disconnected;
             ready = false;
 
-            // local or remote connection?
-            if (isLocalClient)
-            {
-                if (isConnected)
-                {
-                    // call client OnDisconnected with connection to server
-                    // => previously we used to send a DisconnectMessage to
-                    //    NetworkServer.localConnection. this would queue the
-                    //    message until NetworkClient.Update processes it.
-                    // => invoking the client's OnDisconnected event directly
-                    //    here makes tests fail. so let's do it exactly the same
-                    //    order as before by queueing the event for next Update!
-                    //OnDisconnectedEvent?.Invoke(connection);
-                    ((LocalConnectionToServer)connection).QueueDisconnectedEvent();
-                }
-                NetworkServer.RemoveLocalConnection();
-            }
-            else
-            {
-                if (connection != null)
-                {
-                    connection.Disconnect();
-                    connection = null;
-                }
-            }
+            // call Disconnect on the NetworkConnection
+            connection.Disconnect();
+
+            // clean up
+            // (previously only for remote connection, not for local)
+            connection = null;
         }
 
         /// <summary>Disconnect host mode.</summary>
