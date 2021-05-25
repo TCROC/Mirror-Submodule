@@ -41,6 +41,70 @@ namespace Mirror.Tests
         }
 
         [Test]
+        public void TestOverwritingData()
+        {
+            NetworkWriter writer = new NetworkWriter();
+            writer.Write(Matrix4x4.identity);
+            writer.Write(1.23456789m);
+            writer.Position += 10;
+            writer.Write(Vector3.negativeInfinity);
+            writer.Position = 46;
+            // write right at the boundary before SetLength
+            writer.Write(0xfeed_babe_c0ffee);
+            // test that SetLength clears data beyond length
+            writer.SetLength(50);
+            // check that jumping leaves 0s between
+            writer.Position = 100;
+            writer.Write("no worries, m8");
+            writer.Position = 64;
+            writer.Write(true);
+            // check that clipping off the end affect ToArray()'s length
+            writer.SetLength(128);
+            byte[] output = writer.ToArray();
+            byte[] expected = new byte[]{
+                0,0,128,63,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,128,63,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,128,63,0,0,238,
+                255,192,190,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,1,14,110,111,32,119,111,114,114,105,101,
+                115,44,32,109,56,0,0,0,0,0,0,0,0,0,0,0,0
+            };
+            Assert.That(output, Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void TestSetLengthZeroes()
+        {
+            NetworkWriter writer = new NetworkWriter();
+            writer.Write("I saw");
+            writer.Write(0xA_FADED_DEAD_EEL);
+            writer.Write("and ate it");
+            int position = writer.Position;
+            writer.SetLength(10);
+            // Setting length should set position too
+            Assert.That(writer.Position, Is.EqualTo(10));
+            // lets grow it back and check there's zeroes now.
+            writer.SetLength(position);
+            byte[] data = writer.ToArray();
+            for (int i = position; i < data.Length; i++)
+                Assert.That(data[i], Is.EqualTo(0), $"index {i} should have value 0");
+        }
+
+        [Test]
+        public void TestSetLengthInitialization()
+        {
+            NetworkWriter writer = new NetworkWriter();
+            writer.SetLength(10);
+            // Setting length should leave position at 0
+            Assert.That(writer.Position, Is.EqualTo(0));
+            byte[] data = writer.ToArray();
+            for (int i = 0; i < data.Length; i++)
+                Assert.That(data[i], Is.EqualTo(0), $"index {i} should have value 0");
+        }
+
+        [Test]
         public void TestReadingLengthWrapAround()
         {
             NetworkWriter writer = new NetworkWriter();
@@ -364,7 +428,8 @@ namespace Mirror.Tests
                 writer.Write(input);
                 NetworkReader reader = new NetworkReader(writer.ToArray());
                 Ray output = reader.ReadRay();
-                Assert.That(output, Is.EqualTo(input));
+                Assert.That((output.direction - input.direction).magnitude, Is.LessThan(1e-6f));
+                Assert.That(output.origin, Is.EqualTo(input.origin));
             }
         }
 
@@ -759,6 +824,63 @@ namespace Mirror.Tests
                 decimal readDecimal = reader.ReadDecimal();
                 Assert.That(readDecimal, Is.EqualTo(weird));
             }
+        }
+
+        [Test]
+        public void TestFloatBinaryCompatibility()
+        {
+            float[] weirdFloats = new float[]{
+                ((float) Math.PI) / 3.0f,
+                ((float) Math.E) / 3.0f
+            };
+            byte[] expected = new byte[]{
+                146, 10,134, 63,
+                197,245,103, 63,
+            };
+            NetworkWriter writer = new NetworkWriter();
+            foreach (float weird in weirdFloats)
+            {
+                writer.Write(weird);
+            }
+            Assert.That(writer.ToArray(), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void TestDoubleBinaryCompatibility()
+        {
+            double[] weirdDoubles = new double[]{
+                Math.PI / 3.0d,
+                Math.E / 3.0d
+            };
+            byte[] expected = new byte[]{
+                101,115, 45, 56, 82,193,240, 63,
+                140,116,112,185,184,254,236, 63,
+            };
+            NetworkWriter writer = new NetworkWriter();
+            foreach (double weird in weirdDoubles)
+            {
+                writer.Write(weird);
+            }
+            Assert.That(writer.ToArray(), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void TestDecimalBinaryCompatibility()
+        {
+            decimal[] weirdDecimals = new decimal[]{
+                ((decimal) Math.PI) / 3.0m,
+                ((decimal) Math.E) / 3.0m
+            };
+            byte[] expected = new byte[]{
+                171,234,132, 10, 91, 94,177,  3, 18, 55,214, 33,  0,  0, 28,  0,
+                240,109,194,164,104, 82,  0,  0,  0,  0,  0,  0,  0,  0, 14,  0,
+            };
+            NetworkWriter writer = new NetworkWriter();
+            foreach (decimal weird in weirdDecimals)
+            {
+                writer.Write(weird);
+            }
+            Assert.That(writer.ToArray(), Is.EqualTo(expected));
         }
 
         [Test]
