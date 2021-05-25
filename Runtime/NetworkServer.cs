@@ -450,11 +450,21 @@ namespace Mirror
             return connections.Count == 0 || (connections.Count == 1 && localConnection != null);
         }
 
-        /// <summary>
-        /// Called from NetworkManager in LateUpdate
-        /// <para>The user should never need to pump the update loop manually</para>
-        /// </summary>
-        public static void Update()
+        // NetworkEarlyUpdate called before any Update/FixedUpdate
+        // (we add this to the UnityEngine in NetworkLoop)
+        internal static void NetworkEarlyUpdate() {}
+
+        // NetworkLateUpdate called after any Update/FixedUpdate/LateUpdate
+        // (we add this to the UnityEngine in NetworkLoop)
+        internal static void NetworkLateUpdate() {}
+
+        // obsolete to not break people's projects. Update was public.
+        [Obsolete("NetworkServer.Update was renamed to LateUpdate because that's when it actually happens.")]
+        public static void Update() => LateUpdate();
+
+        // Called from NetworkManager in LateUpdate
+        // The user should never need to pump the update loop manually.
+        internal static void LateUpdate()
         {
             // don't need to update server if not active
             if (!active) return;
@@ -471,12 +481,9 @@ namespace Mirror
                 {
                     identity.ServerUpdate();
                 }
-                else
-                {
-                    // spawned list should have no null entries because we
-                    // always call Remove in OnObjectDestroy everywhere.
-                    Debug.LogWarning("Found 'null' entry in spawned list for netId=" + kvp.Key + ". Please call NetworkServer.Destroy to destroy networked objects. Don't use GameObject.Destroy.");
-                }
+                // spawned list should have no null entries because we
+                // always call Remove in OnObjectDestroy everywhere.
+                else Debug.LogWarning("Found 'null' entry in spawned list for netId=" + kvp.Key + ". Please call NetworkServer.Destroy to destroy networked objects. Don't use GameObject.Destroy.");
             }
 
             // update all connections to send out batched messages in interval
