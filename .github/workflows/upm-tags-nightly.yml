@@ -19,7 +19,7 @@ jobs:
       with:
         fetch-depth: 0
         path: theirRepo
-        repository:  vis2k/Mirror 
+        repository: vis2k/Mirror 
 
     - name: Format and push to SUBMODULE branch
       run: |
@@ -104,7 +104,7 @@ jobs:
           done
           for submoduleParentFolder in $SUBMODULE_FOLDER_CONTENTS
           do
-            echo "Moving file at path $GITHUB_WORKSPACE/theirRepo/$submoduleFile"
+            echo "Moving folder at path $GITHUB_WORKSPACE/theirRepo/$submoduleParentFolder"
             sudo mv -v "$GITHUB_WORKSPACE/theirRepo/$submoduleParentFolder"/* "$GITHUB_WORKSPACE/myRepo/"
           done
           sudo cp -a "$GITHUB_WORKSPACE/SUBMODULE-Files/." "$GITHUB_WORKSPACE/myRepo/"
