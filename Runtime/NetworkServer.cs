@@ -1358,18 +1358,18 @@ namespace Mirror
         // Helper function to add all server connections as observers.
         // This is used if none of the components provides their own
         // OnRebuildObservers function.
-        internal static void AddAllAuthenticatedConnectionsToObservers(NetworkIdentity identity)
+        internal static void AddAllReadyServerConnectionsToObservers(NetworkIdentity identity)
         {
             // add all server connections
             foreach (NetworkConnectionToClient conn in connections.Values)
             {
                 // only if authenticated (don't send to people during logins)
-                if (conn.isAuthenticated)
+                if (conn.isReady)
                     identity.AddObserver(conn);
             }
 
             // add local host connection (if any)
-            if (localConnection != null)
+            if (localConnection != null && localConnection.isReady)
             {
                 identity.AddObserver(localConnection);
             }
@@ -1388,7 +1388,7 @@ namespace Mirror
                 // not force hidden?
                 if (identity.visible != Visibility.ForceHidden)
                 {
-                    AddAllAuthenticatedConnectionsToObservers(identity);
+                    AddAllReadyServerConnectionsToObservers(identity);
                 }
             }
         }
@@ -1428,7 +1428,9 @@ namespace Mirror
             // add all newObservers that aren't in .observers yet
             foreach (NetworkConnection conn in newObservers)
             {
-                if (conn != null)
+                // only add ready connections.
+                // otherwise the player might not be in the world yet or anymore
+                if (conn != null && conn.isReady)
                 {
                     if (initialize || !identity.observers.ContainsKey(conn.connectionId))
                     {
@@ -1458,7 +1460,7 @@ namespace Mirror
                 identity.observers.Clear();
                 foreach (NetworkConnection conn in newObservers)
                 {
-                    if (conn != null)
+                    if (conn != null && conn.isReady)
                         identity.observers.Add(conn.connectionId, conn);
                 }
             }
