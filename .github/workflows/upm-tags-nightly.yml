@@ -1,1 +1,126 @@
+name: SUBMODULE-Tags-Nightly
+on:
+  workflow_dispatch:
+   schedule:
+   - cron: "0 0 * * *"
 
+jobs:
+  format-submodule:
+    name: Format SUBMODULE
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        path: myRepo
+
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        path: theirRepo
+        repository:  SoftwareGuy/Ignorance 
+
+    - name: Format and push to SUBMODULE branch
+      run: |
+        shopt -s extglob
+        git config --global user.email "github-workflow-agent@github.com"
+        git config --global user.name "GitHub Workflow Agent"
+        sudo apt-get -y update
+        sudo apt-get -y install jq
+        cd "$GITHUB_WORKSPACE/theirRepo"
+        theirTags=$(git tag --sort=committerdate)
+        echo "Their tags: $theirTags"
+        cd "$GITHUB_WORKSPACE/myRepo"
+        sudo mkdir "$GITHUB_WORKSPACE/SUBMODULE-Files"
+        sudo cp -a "$GITHUB_WORKSPACE/myRepo/SUBMODULE-Files/." "$GITHUB_WORKSPACE/SUBMODULE-Files"
+        myTags=$(git tag)
+        echo "My tags: $myTags"
+        for theirTag in $theirTags
+        do
+          doContinue=false
+          for requiredPrefix in $REQUIRED_PREFIXES
+          do
+            if [[ "$requiredPrefix" != "" && "$theirTag" != "$requiredPrefix"* ]]; then
+              echo "their tag $theirTag is missing required prefix $requiredSubstring. Skipping"
+              doContinue=true
+              break
+            fi
+          done
+          if $doContinue; then
+            continue
+          fi
+          for excludedPrefix in $EXCLUDED_PREFIXES
+          do
+            if [[ "$excludedPrefix" != "" && "$theirTag" == "$excludedPrefix"* ]]; then
+              echo $"their tag $theirTag contains excluded prefix $excludedPrefix. Skipping."
+              doContinue=true
+              break
+            fi
+          done
+          if $doContinue; then
+            continue
+          fi
+          for requiredSubstring in $REQUIRED_SUBSTRINGS
+          do
+            if [[ "$requiredSubstring" != "" && "$theirTag" != *"$requiredSubstring"* ]]; then
+              echo "their tag $theirTag is missing required subtring $requiredSubstring. Skipping"
+              doContinue=true
+              break
+            fi
+          done
+          if $doContinue; then
+            continue
+          fi
+          for excludedSubstring in $EXCLUDED_SUBSTRINGS
+          do
+            if [[ "$excludedSubstring" != "" && "$theirTag" == *"$excludedSubstring"* ]]; then
+              echo $"their tag $theirTag contains excluded subtring $excludedSubstring. Skipping."
+              doContinue=true
+              break
+            fi
+          done
+          if $doContinue; then
+            continue
+          fi
+          tagToVersion="$theirTag"
+          if [[ "$myTags" == *"$tagToVersion"* ]]; then
+            echo "Already released tag: $tagToVersion. Skipping"
+            continue
+          fi
+          echo "Creating submodule release for tag $theirTag"
+          cd "$GITHUB_WORKSPACE/theirRepo"
+          git reset --hard
+          git checkout tags/$theirTag
+          cd "$GITHUB_WORKSPACE/myRepo"
+          git checkout -B $SUBMODULE_BRANCH
+          echo "Listing their repo"
+          ls "$GITHUB_WORKSPACE/theirRepo"
+          sudo rm -rf !('.git'|'.gitattributes'|'.gitignore') || true
+          for submoduleFile in $SUBMODULE_FILES
+          do
+            echo "Moving file at path $GITHUB_WORKSPACE/theirRepo/$submoduleFile"
+            sudo mv -v "$GITHUB_WORKSPACE/theirRepo/$submoduleFile" "$GITHUB_WORKSPACE/myRepo/"
+          done
+          for submoduleParentFolder in $SUBMODULE_FOLDER_CONTENTS
+          do
+            echo "Moving file at path $GITHUB_WORKSPACE/theirRepo/$submoduleFile"
+            sudo mv -v "$GITHUB_WORKSPACE/theirRepo/$submoduleParentFolder"/* "$GITHUB_WORKSPACE/myRepo/"
+          done
+          sudo cp -a "$GITHUB_WORKSPACE/SUBMODULE-Files/." "$GITHUB_WORKSPACE/myRepo/"
+          git add -A
+          git commit -m "Format for submodule" || true
+          submoduleSHA1=$(git rev-parse $SUBMODULE_BRANCH)
+          git tag -a $tagToVersion -m "SUBMODULE - Release $version" $submoduleSHA1
+          git push -u origin $SUBMODULE_BRANCH --follow-tags -f
+          echo "Created submodule release for tag $tagToVersion"
+        done
+      env:
+        SUBMODULE_FILES: "LICENSE README.md CONTRIBUTING.md"
+        SUBMODULE_FOLDER_CONTENTS: "Assets/Mirror"
+        SUBMODULE_BRANCH: releases/submodule
+        REQUIRED_PREFIXES: "v"
+        EXCLUDED_PREFIXES: ""
+        REQUIRED_SUBSTRINGS: ""
+        EXCLUDED_SUBSTRINGS: ""
+      shell: bash
