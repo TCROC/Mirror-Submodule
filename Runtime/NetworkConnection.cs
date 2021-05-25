@@ -10,8 +10,11 @@ namespace Mirror
         public const int LocalConnectionId = 0;
 
         // NetworkIdentities that this connection can see
+        // TODO move to server's NetworkConnectionToClient?
         internal readonly HashSet<NetworkIdentity> observing = new HashSet<NetworkIdentity>();
 
+        // TODO this is NetworkServer.handlers on server and NetworkClient.handlers on client.
+        //      maybe use them directly. avoid extra state.
         Dictionary<int, NetworkMessageDelegate> messageHandlers;
 
         /// <summary>Unique identifier for this connection that is assigned by the transport layer.</summary>
@@ -26,6 +29,9 @@ namespace Mirror
         public object authenticationData;
 
         /// <summary>A server connection is ready after joining the game world.</summary>
+        // TODO move this to ConnectionToClient so the flag only lives on server
+        // connections? clients could use NetworkClient.ready to avoid redundant
+        // state.
         public bool isReady;
 
         /// <summary>IP address of the connection. Can be useful for game master IP bans etc.</summary>
@@ -66,7 +72,7 @@ namespace Mirror
         }
 
         /// <summary>Send a NetworkMessage to this connection over the given channel.</summary>
-        public void Send<T>(T msg, int channelId = Channels.DefaultReliable)
+        public void Send<T>(T msg, int channelId = Channels.Reliable)
             where T : struct, NetworkMessage
         {
             using (PooledNetworkWriter writer = NetworkWriterPool.GetWriter())
@@ -87,7 +93,7 @@ namespace Mirror
         {
             if (segment.Count > Transport.activeTransport.GetMaxPacketSize(channelId))
             {
-                Debug.LogError("NetworkConnection.ValidatePacketSize: cannot send packet larger than " + Transport.activeTransport.GetMaxPacketSize(channelId) + " bytes");
+                Debug.LogError($"NetworkConnection.ValidatePacketSize: cannot send packet larger than {Transport.activeTransport.GetMaxPacketSize(channelId)} bytes, was {segment.Count} bytes");
                 return false;
             }
 
@@ -104,10 +110,11 @@ namespace Mirror
 
         // internal because no one except Mirror should send bytes directly to
         // the client. they would be detected as a message. send messages instead.
-        internal abstract void Send(ArraySegment<byte> segment, int channelId = Channels.DefaultReliable);
+        internal abstract void Send(ArraySegment<byte> segment, int channelId = Channels.Reliable);
 
         public override string ToString() => $"connection({connectionId})";
 
+        // TODO move to server's NetworkConnectionToClient?
         internal void AddToObserving(NetworkIdentity netIdentity)
         {
             observing.Add(netIdentity);
@@ -116,6 +123,7 @@ namespace Mirror
             NetworkServer.ShowForConnection(netIdentity, this);
         }
 
+        // TODO move to server's NetworkConnectionToClient?
         internal void RemoveFromObserving(NetworkIdentity netIdentity, bool isDestroyed)
         {
             observing.Remove(netIdentity);
@@ -127,6 +135,7 @@ namespace Mirror
             }
         }
 
+        // TODO move to server's NetworkConnectionToClient?
         internal void RemoveObservers()
         {
             foreach (NetworkIdentity netIdentity in observing)

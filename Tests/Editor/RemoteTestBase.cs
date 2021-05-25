@@ -23,7 +23,7 @@ namespace Mirror.Tests.RemoteAttrributeTest
             NetworkServer.localConnection.isAuthenticated = true;
             NetworkClient.connection.isAuthenticated = true;
 
-            NetworkClient.Ready(NetworkClient.connection);
+            NetworkClient.Ready();
         }
 
         [TearDown]
@@ -61,7 +61,7 @@ namespace Mirror.Tests.RemoteAttrributeTest
             NetworkIdentity netIdentity = gameObject.AddComponent<NetworkIdentity>();
 
             // host mode object needs a connection to server for commands to work
-            netIdentity.connectionToServer = NetworkClient.readyConnection;
+            netIdentity.connectionToServer = NetworkClient.connection;
 
             T behaviour = gameObject.AddComponent<T>();
 

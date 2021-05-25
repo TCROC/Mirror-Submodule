@@ -756,7 +756,7 @@ namespace Mirror
             OnServerChangeScene(newSceneName);
 
             // Suspend the server's transport while changing scenes
-            // It will be re-enabled in FinishScene.
+            // It will be re-enabled in FinishLoadScene.
             Transport.activeTransport.enabled = false;
 
             loadingSceneAsync = SceneManager.LoadSceneAsync(newSceneName);
@@ -1113,19 +1113,19 @@ namespace Mirror
             OnServerAddPlayer(conn);
         }
 
-        void OnClientConnectInternal(NetworkConnection conn)
+        void OnClientConnectInternal()
         {
             //Debug.Log("NetworkManager.OnClientConnectInternal");
 
             if (authenticator != null)
             {
                 // we have an authenticator - let it handle authentication
-                authenticator.OnClientAuthenticate(conn);
+                authenticator.OnClientAuthenticate(NetworkClient.connection);
             }
             else
             {
                 // authenticate immediately
-                OnClientAuthenticated(conn);
+                OnClientAuthenticated(NetworkClient.connection);
             }
         }
 
@@ -1151,21 +1151,21 @@ namespace Mirror
             }
         }
 
-        void OnClientDisconnectInternal(NetworkConnection conn)
+        void OnClientDisconnectInternal()
         {
             //Debug.Log("NetworkManager.OnClientDisconnectInternal");
-            OnClientDisconnect(conn);
+            OnClientDisconnect(NetworkClient.connection);
         }
 
-        void OnClientNotReadyMessageInternal(NetworkConnection conn, NotReadyMessage msg)
+        void OnClientNotReadyMessageInternal(NotReadyMessage msg)
         {
             //Debug.Log("NetworkManager.OnClientNotReadyMessageInternal");
             NetworkClient.ready = false;
-            OnClientNotReady(conn);
+            OnClientNotReady(NetworkClient.connection);
             // NOTE: clientReadyConnection is not set here! don't want OnClientConnect to be invoked again after scene changes.
         }
 
-        void OnClientSceneInternal(NetworkConnection conn, SceneMessage msg)
+        void OnClientSceneInternal(SceneMessage msg)
         {
             //Debug.Log("NetworkManager.OnClientSceneInternal");
             if (NetworkClient.isConnected && !NetworkServer.active)
@@ -1220,6 +1220,7 @@ namespace Mirror
         public virtual void OnServerSceneChanged(string sceneName) {}
 
         /// <summary>Called on the client when connected to a server. By default it sets client as ready and adds a player.</summary>
+        // TODO client only ever uses NetworkClient.connection. this parameter is redundant.
         public virtual void OnClientConnect(NetworkConnection conn)
         {
             // OnClientConnect by default calls AddPlayer but it should not do
@@ -1227,16 +1228,19 @@ namespace Mirror
             // clientLoadedScene flag to prevent it.
             if (!clientLoadedScene)
             {
-                // Ready/AddPlayer is usually triggered by a scene load completing. if no scene was loaded, then Ready/AddPlayer it here instead.
-                if (!NetworkClient.ready) NetworkClient.Ready(conn);
+                // Ready/AddPlayer is usually triggered by a scene load
+                // completing. if no scene was loaded, then Ready/AddPlayer it
+                // here instead.
+                if (!NetworkClient.ready) NetworkClient.Ready();
                 if (autoCreatePlayer)
                 {
-                    NetworkClient.AddPlayer(conn);
+                    NetworkClient.AddPlayer();
                 }
             }
         }
 
         /// <summary>Called on clients when disconnected from a server.</summary>
+        // TODO client only ever uses NetworkClient.connection. this parameter is redundant.
         public virtual void OnClientDisconnect(NetworkConnection conn)
         {
             StopClient();
@@ -1246,6 +1250,7 @@ namespace Mirror
         public virtual void OnClientError(NetworkConnection conn, int errorCode) {}
 
         /// <summary>Called on clients when a servers tells the client it is no longer ready, e.g. when switching scenes.</summary>
+        // TODO client only ever uses NetworkClient.connection. this parameter is redundant.
         public virtual void OnClientNotReady(NetworkConnection conn) {}
 
         /// <summary>Called from ClientChangeScene immediately before SceneManager.LoadSceneAsync is executed</summary>
@@ -1256,16 +1261,17 @@ namespace Mirror
         // Scene changes can cause player objects to be destroyed. The default
         // implementation of OnClientSceneChanged in the NetworkManager is to
         // add a player object for the connection if no player object exists.
+        // TODO client only ever uses NetworkClient.connection. this parameter is redundant.
         public virtual void OnClientSceneChanged(NetworkConnection conn)
         {
             // always become ready.
-            if (!NetworkClient.ready) NetworkClient.Ready(conn);
+            if (!NetworkClient.ready) NetworkClient.Ready();
 
             // Only call AddPlayer for normal scene changes, not additive load/unload
             if (clientSceneOperation == SceneOperation.Normal && autoCreatePlayer && NetworkClient.localPlayer == null)
             {
                 // add player if existing one is null
-                NetworkClient.AddPlayer(conn);
+                NetworkClient.AddPlayer();
             }
         }
 
