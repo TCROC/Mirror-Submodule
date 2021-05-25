@@ -82,12 +82,10 @@ namespace Mirror
         [Tooltip("Maximum number of concurrent connections.")]
         public int maxConnections = 100;
 
-        /// <summary>Server Only - Disconnects remote connections that have been silent for more than Server Idle Timeout</summary>
-        [Tooltip("Server Only - Disconnects remote connections that have been silent for more than Server Idle Timeout")]
+        [Obsolete("Transport is responsible for timeouts.")]
         public bool disconnectInactiveConnections;
 
-        /// <summary>Timeout in seconds since last message from a client after which server will auto-disconnect if Disconnect Inactive Connections is enabled.</summary>
-        [Tooltip("Timeout in seconds since last message from a client after which server will auto-disconnect if Disconnect Inactive Connections is enabled.")]
+        [Obsolete("Transport is responsible for timeouts. Configure the Transport's timeout setting instead.")]
         public float disconnectInactiveTimeout = 60f;
 
         [Header("Authentication")]
@@ -256,8 +254,10 @@ namespace Mirror
             NetworkServer.batchInterval = serverBatchInterval;
 
             // Copy auto-disconnect settings to NetworkServer
+#pragma warning disable 618
             NetworkServer.disconnectInactiveTimeout = disconnectInactiveTimeout;
             NetworkServer.disconnectInactiveConnections = disconnectInactiveConnections;
+#pragma warning restore 618
 
             // start listening to network connections
             NetworkServer.Listen(maxConnections);
@@ -694,7 +694,7 @@ namespace Mirror
         void RegisterServerMessages()
         {
             NetworkServer.OnConnectedEvent = OnServerConnectInternal;
-            NetworkServer.OnDisconnectedEvent = OnServerDisconnectInternal;
+            NetworkServer.OnDisconnectedEvent = OnServerDisconnect;
             NetworkServer.RegisterHandler<AddPlayerMessage>(OnServerAddPlayerInternal);
 
             // Network Server initially registers its own handler for this, so we replace it here.
@@ -1096,12 +1096,6 @@ namespace Mirror
             OnServerConnect(conn);
         }
 
-        void OnServerDisconnectInternal(NetworkConnection conn)
-        {
-            //Debug.Log("NetworkManager.OnServerDisconnectInternal");
-            OnServerDisconnect(conn);
-        }
-
         void OnServerReadyMessageInternal(NetworkConnection conn, ReadyMessage msg)
         {
             //Debug.Log("NetworkManager.OnServerReadyMessageInternal");
@@ -1171,6 +1165,7 @@ namespace Mirror
             }
         }
 
+        // TODO call OnClientDisconnect directly, don't pass the connection
         void OnClientDisconnectInternal()
         {
             //Debug.Log("NetworkManager.OnClientDisconnectInternal");
@@ -1198,8 +1193,12 @@ namespace Mirror
         public virtual void OnServerConnect(NetworkConnection conn) {}
 
         /// <summary>Called on the server when a client disconnects.</summary>
+        // Called by NetworkServer.OnTransportDisconnect!
         public virtual void OnServerDisconnect(NetworkConnection conn)
         {
+            // by default, this function destroys the connection's player.
+            // can be overwritten for cases like delayed logouts in MMOs to
+            // avoid players escaping from PvP situations by logging out.
             NetworkServer.DestroyPlayerForConnection(conn);
             Debug.Log("OnServerDisconnect: Client disconnected.");
         }

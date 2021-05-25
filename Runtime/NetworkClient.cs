@@ -87,9 +87,9 @@ namespace Mirror
         // initialization //////////////////////////////////////////////////////
         static void AddTransportHandlers()
         {
-            Transport.activeTransport.OnClientConnected = OnConnected;
-            Transport.activeTransport.OnClientDataReceived = OnDataReceived;
-            Transport.activeTransport.OnClientDisconnected = OnDisconnected;
+            Transport.activeTransport.OnClientConnected = OnTransportConnected;
+            Transport.activeTransport.OnClientDataReceived = OnTransportData;
+            Transport.activeTransport.OnClientDisconnected = OnTransportDisconnected;
             Transport.activeTransport.OnClientError = OnError;
         }
 
@@ -248,12 +248,13 @@ namespace Mirror
                 // local connection. should we send a DisconnectMessage here too?
                 // (if we do then we get an Unknown Message ID log)
                 //NetworkServer.localConnection.Send(new DisconnectMessage());
-                NetworkServer.OnDisconnected(NetworkServer.localConnection.connectionId);
+                NetworkServer.OnTransportDisconnected(NetworkServer.localConnection.connectionId);
             }
         }
 
         // transport events ////////////////////////////////////////////////////
-        static void OnConnected()
+        // called by Transport
+        static void OnTransportConnected()
         {
             if (connection != null)
             {
@@ -269,16 +270,18 @@ namespace Mirror
             else Debug.LogError("Skipped Connect message handling because connection is null.");
         }
 
-        internal static void OnDataReceived(ArraySegment<byte> data, int channelId)
+        // called by Transport
+        internal static void OnTransportData(ArraySegment<byte> data, int channelId)
         {
             if (connection != null)
             {
-                connection.TransportReceive(data, channelId);
+                connection.OnTransportData(data, channelId);
             }
             else Debug.LogError("Skipped Data message handling because connection is null.");
         }
 
-        static void OnDisconnected()
+        // called by Transport
+        static void OnTransportDisconnected()
         {
             // StopClient called from user code triggers Disconnected event
             // from transport which calls StopClient again, so check here

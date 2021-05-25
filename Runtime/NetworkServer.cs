@@ -44,13 +44,11 @@ namespace Mirror
         // by default, everyone observes everyone
         public static InterestManagement aoi;
 
-        /// <summary>Automatically disconnect inactive connections after a timeout. Can be changed at runtime.</summary>
+        [Obsolete("Transport is responsible for timeouts.")]
         public static bool disconnectInactiveConnections;
 
-        /// <summary>Timeout in seconds to disconnect inactive connections. Can be changed at runtime.</summary>
-        // By default, clients send at least a Ping message every 2 seconds.
-        // The Host client is immune from idle timeout disconnection.
-        public static float disconnectInactiveTimeout = 60;
+        [Obsolete("Transport is responsible for timeouts. Configure the Transport's timeout setting instead.")]
+        public static float disconnectInactiveTimeout = 60f;
 
         // OnConnected / OnDisconnected used to be NetworkMessages that were
         // invoked. this introduced a bug where external clients could send
@@ -77,9 +75,9 @@ namespace Mirror
 
         static void AddTransportHandlers()
         {
-            Transport.activeTransport.OnServerConnected = OnConnected;
-            Transport.activeTransport.OnServerDataReceived = OnDataReceived;
-            Transport.activeTransport.OnServerDisconnected = OnDisconnected;
+            Transport.activeTransport.OnServerConnected = OnTransportConnected;
+            Transport.activeTransport.OnServerDataReceived = OnTransportData;
+            Transport.activeTransport.OnServerDisconnected = OnTransportDisconnected;
             Transport.activeTransport.OnServerError = OnError;
         }
 
@@ -350,7 +348,8 @@ namespace Mirror
         }
 
         // transport events ////////////////////////////////////////////////////
-        static void OnConnected(int connectionId)
+        // called by transport
+        static void OnTransportConnected(int connectionId)
         {
             // Debug.Log("Server accepted client:" + connectionId);
 
@@ -400,11 +399,12 @@ namespace Mirror
             OnConnectedEvent?.Invoke(conn);
         }
 
-        static void OnDataReceived(int connectionId, ArraySegment<byte> data, int channelId)
+        // called by transport
+        static void OnTransportData(int connectionId, ArraySegment<byte> data, int channelId)
         {
             if (connections.TryGetValue(connectionId, out NetworkConnectionToClient conn))
             {
-                conn.TransportReceive(data, channelId);
+                conn.OnTransportData(data, channelId);
             }
             else
             {
@@ -412,7 +412,8 @@ namespace Mirror
             }
         }
 
-        internal static void OnDisconnected(int connectionId)
+        // called by transport
+        internal static void OnTransportDisconnected(int connectionId)
         {
             // Debug.Log("Server disconnect client:" + connectionId);
             if (connections.TryGetValue(connectionId, out NetworkConnectionToClient conn))
@@ -420,14 +421,26 @@ namespace Mirror
                 conn.Disconnect();
                 RemoveConnection(connectionId);
                 // Debug.Log("Server lost client:" + connectionId);
+
+                // call OnDisconnected below. it's used in multiple places.
                 OnDisconnected(conn);
             }
         }
 
         static void OnDisconnected(NetworkConnection conn)
         {
-            OnDisconnectedEvent?.Invoke(conn);
-            //Debug.Log("Server lost client:" + conn);
+            // NetworkManager hooks into OnDisconnectedEvent to make
+            // DestroyPlayerForConnection(conn) optional, e.g. for PvP MMOs
+            // where players shouldn't be able to escape combat instantly.
+            if (OnDisconnectedEvent != null)
+            {
+                OnDisconnectedEvent.Invoke(conn);
+            }
+            // if nobody hooked into it, then simply call DestroyPlayerForConnection
+            else
+            {
+                DestroyPlayerForConnection(conn);
+            }
         }
 
         static void OnError(int connectionId, Exception exception)
@@ -687,7 +700,7 @@ namespace Mirror
             {
                 // Debug.Log("PlayerNotReady " + conn);
                 conn.isReady = false;
-                conn.RemoveObservers();
+                conn.RemoveFromObservingsObservers();
 
                 conn.Send(new NotReadyMessage());
             }
@@ -1345,6 +1358,7 @@ namespace Mirror
                 foreach (NetworkConnectionToClient connection in connections.Values)
                 {
                     // check for inactivity
+#pragma warning disable 618
                     if (disconnectInactiveConnections &&
                         !connection.IsAlive(disconnectInactiveTimeout))
                     {
@@ -1352,6 +1366,7 @@ namespace Mirror
                         connection.Disconnect();
                         continue;
                     }
+#pragma warning restore 618
 
                     // has this connection joined the world yet?
                     // for each READY connection:
