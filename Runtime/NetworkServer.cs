@@ -452,46 +452,53 @@ namespace Mirror
 
         // NetworkEarlyUpdate called before any Update/FixedUpdate
         // (we add this to the UnityEngine in NetworkLoop)
-        internal static void NetworkEarlyUpdate() {}
+        internal static void NetworkEarlyUpdate()
+        {
+            // process all incoming messages first before updating the world
+            if (Transport.activeTransport != null)
+                Transport.activeTransport.ServerEarlyUpdate();
+        }
 
         // NetworkLateUpdate called after any Update/FixedUpdate/LateUpdate
         // (we add this to the UnityEngine in NetworkLoop)
-        internal static void NetworkLateUpdate() {}
+        internal static void NetworkLateUpdate()
+        {
+            // only process spawned & connections if active
+            if (active)
+            {
+                // Check for dead clients but exclude the host client because it
+                // doesn't ping itself and therefore may appear inactive.
+                CheckForInactiveConnections();
+
+                // update all server objects
+                foreach (KeyValuePair<uint, NetworkIdentity> kvp in NetworkIdentity.spawned)
+                {
+                    NetworkIdentity identity = kvp.Value;
+                    if (identity != null)
+                    {
+                        identity.ServerUpdate();
+                    }
+                    // spawned list should have no null entries because we
+                    // always call Remove in OnObjectDestroy everywhere.
+                    else Debug.LogWarning("Found 'null' entry in spawned list for netId=" + kvp.Key + ". Please call NetworkServer.Destroy to destroy networked objects. Don't use GameObject.Destroy.");
+                }
+
+                // update all connections to send out batched messages in interval
+                foreach (NetworkConnectionToClient conn in connections.Values)
+                {
+                    conn.Update();
+                }
+            }
+
+            // process all incoming messages after updating the world
+            // (even if not active. still want to process disconnects etc.)
+            if (Transport.activeTransport != null)
+                Transport.activeTransport.ServerLateUpdate();
+        }
 
         // obsolete to not break people's projects. Update was public.
-        [Obsolete("NetworkServer.Update was renamed to LateUpdate because that's when it actually happens.")]
-        public static void Update() => LateUpdate();
-
-        // Called from NetworkManager in LateUpdate
-        // The user should never need to pump the update loop manually.
-        internal static void LateUpdate()
-        {
-            // don't need to update server if not active
-            if (!active) return;
-
-            // Check for dead clients but exclude the host client because it
-            // doesn't ping itself and therefore may appear inactive.
-            CheckForInactiveConnections();
-
-            // update all server objects
-            foreach (KeyValuePair<uint, NetworkIdentity> kvp in NetworkIdentity.spawned)
-            {
-                NetworkIdentity identity = kvp.Value;
-                if (identity != null)
-                {
-                    identity.ServerUpdate();
-                }
-                // spawned list should have no null entries because we
-                // always call Remove in OnObjectDestroy everywhere.
-                else Debug.LogWarning("Found 'null' entry in spawned list for netId=" + kvp.Key + ". Please call NetworkServer.Destroy to destroy networked objects. Don't use GameObject.Destroy.");
-            }
-
-            // update all connections to send out batched messages in interval
-            foreach (NetworkConnectionToClient conn in connections.Values)
-            {
-                conn.Update();
-            }
-        }
+        [Obsolete("NetworkServer.Update is now called internally from our custom update loop. No need to call Update manually anymore.")]
+        public static void Update() => NetworkLateUpdate();
 
         static void CheckForInactiveConnections()
         {
