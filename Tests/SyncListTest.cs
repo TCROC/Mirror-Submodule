@@ -1,6 +1,8 @@
 using System;
 using NUnit.Framework;
 
+using Mirror;
+
 namespace Mirror.Tests
 {
     [TestFixture]
