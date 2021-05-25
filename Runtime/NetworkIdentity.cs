@@ -278,7 +278,9 @@ namespace Mirror
         [SerializeField, HideInInspector] bool hasSpawned;
         public bool SpawnedFromInstantiate { get; private set; }
 
-        void Awake()
+        // Awake is only called in Play mode.
+        // internal so we can call it during unit tests too.
+        internal void Awake()
         {
             if (hasSpawned)
             {
@@ -1115,6 +1117,10 @@ namespace Mirror
             }
         }
 
+        // Reset is called when the user hits the Reset button in the
+        // Inspector's context menu or when adding the component the first time.
+        // This function is only called in editor mode.
+        //
         // Reset() seems to be called only for Scene objects.
         // we can't destroy them (they are always in the scene).
         // instead we disable them and call Reset().
