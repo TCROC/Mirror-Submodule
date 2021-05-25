@@ -145,21 +145,26 @@ namespace Mirror
                 return;
             }
 
-            // originally we checked if NetworkClient.readyConnection == null
-            // instead check connectionToServer and isReady.
-            if (connectionToServer == null)
+            // previously we used NetworkClient.readyConnection.
+            // now we check .ready separately and use .connection instead.
+            if (!NetworkClient.ready)
             {
-                Debug.LogError("Send command attempted with no client running [client=" + connectionToServer + "].");
+                Debug.LogError("Send command attempted while NetworkClient is not ready.");
                 return;
             }
 
-            if (!connectionToServer.isReady)
+            // IMPORTANT: can't use .connectionToServer here because calling
+            // a command on other objects is allowed if requireAuthority is
+            // false. other objects don't have a .connectionToServer.
+            // => so we always need to use NetworkClient.connection instead.
+            // => see also: https://github.com/vis2k/Mirror/issues/2629
+            if (NetworkClient.connection == null)
             {
-                Debug.LogError("Trying to send command, but connectionToServer isn't ready");
+                Debug.LogError("Send command attempted with no client running.");
                 return;
             }
 
-            // send CommandMessage to the server
+            // construct the message
             CommandMessage message = new CommandMessage
             {
                 netId = netId,
@@ -170,7 +175,12 @@ namespace Mirror
                 payload = writer.ToArraySegment()
             };
 
-            connectionToServer.Send(message, channelId);
+            // IMPORTANT: can't use .connectionToServer here because calling
+            // a command on other objects is allowed if requireAuthority is
+            // false. other objects don't have a .connectionToServer.
+            // => so we always need to use NetworkClient.connection instead.
+            // => see also: https://github.com/vis2k/Mirror/issues/2629
+            NetworkClient.connection.Send(message, channelId);
         }
 
         protected void SendRPCInternal(Type invokeClass, string rpcName, NetworkWriter writer, int channelId, bool includeOwner)
