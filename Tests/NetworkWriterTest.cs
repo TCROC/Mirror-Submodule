@@ -110,6 +110,18 @@ namespace Mirror.Tests
                 "🆄🅽🅸🅲🅾🅳🅴 🆃🅴🆂🆃",
                 "ⓤⓝⓘⓒⓞⓓⓔ ⓣⓔⓢⓣ",
                 "̶̝̳̥͈͖̝͌̈͛̽͊̏̚͠",
+                // test control codes
+                "\r\n", "\n", "\r", "\t",
+                "\\", "\"", "\'",
+                "\u0000\u0001\u0002\u0003",
+                "\u0004\u0005\u0006\u0007",
+                "\u0008\u0009\u000A\u000B",
+                "\u000C\u000D\u000E\u000F",
+                // test invalid bytes as characters
+                "\u00C0\u00C1\u00F5\u00F6",
+                "\u00F7\u00F8\u00F9\u00FA",
+                "\u00FB\u00FC\u00FD\u00FE",
+                "\u00FF",
             };
             foreach (string weird in weirdUnicode)
             {
@@ -142,6 +154,22 @@ namespace Mirror.Tests
             Assert.That(reader.ReadPackedUInt32(), Is.EqualTo(16777210));
             Assert.That(reader.ReadPackedUInt32(), Is.EqualTo(16777219));
             Assert.That(reader.ReadPackedUInt32(), Is.EqualTo(uint.MaxValue));
+        }
+
+        [Test]
+        public void TestPackedUInt32Failure()
+        {
+            Assert.DoesNotThrow(() => {
+                NetworkWriter writer = new NetworkWriter();
+                writer.WritePackedUInt64(1099511627775);
+                writer.WritePackedUInt64(281474976710655);
+                writer.WritePackedUInt64(72057594037927935);
+
+                NetworkReader reader = new NetworkReader(writer.ToArray());
+                reader.ReadPackedUInt32();
+                reader.ReadPackedUInt32();
+                reader.ReadPackedUInt32();
+            });
         }
 
         [Test]
@@ -178,6 +206,22 @@ namespace Mirror.Tests
             Assert.That(reader.ReadPackedInt32(), Is.EqualTo(-16777210));
             Assert.That(reader.ReadPackedInt32(), Is.EqualTo(-16777219));
             Assert.That(reader.ReadPackedInt32(), Is.EqualTo(int.MinValue));
+        }
+
+        [Test]
+        public void TestPackedInt32Failure()
+        {
+            Assert.DoesNotThrow(() => {
+                NetworkWriter writer = new NetworkWriter();
+                writer.WritePackedInt64(1099511627775);
+                writer.WritePackedInt64(281474976710655);
+                writer.WritePackedInt64(72057594037927935);
+
+                NetworkReader reader = new NetworkReader(writer.ToArray());
+                reader.ReadPackedInt32();
+                reader.ReadPackedInt32();
+                reader.ReadPackedInt32();
+            });
         }
 
         [Test]
