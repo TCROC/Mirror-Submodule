@@ -507,16 +507,8 @@ namespace Mirror
 
         // disconnect //////////////////////////////////////////////////////////
         /// <summary>Disconnect all connections, including the local connection.</summary>
-        public static void DisconnectAll()
-        {
-            DisconnectAllExternalConnections();
-            localConnection = null;
-            active = false;
-        }
-
-        /// <summary>Disconnect all currently connected clients except the local connection.</summary>
         // synchronous: handles disconnect events and cleans up fully before returning!
-        public static void DisconnectAllExternalConnections()
+        public static void DisconnectAll()
         {
             // disconnect and remove all connections.
             // we can not use foreach here because if
@@ -540,18 +532,24 @@ namespace Mirror
                 //    waiting for the Transport's callback.
                 // -> it has checks to only run once.
 
-                // call OnDisconnected unless local player in host mode
+                // call OnDisconnected unless local player in host mod
+                // TODO unnecessary check?
                 if (conn.connectionId != NetworkConnection.LocalConnectionId)
                     OnTransportDisconnected(conn.connectionId);
             }
 
-            // TODO this technically clears the local connection too.
-            // which the function name would not suggest.
+            // cleanup
             connections.Clear();
+            localConnection = null;
+            active = false;
         }
 
-        [Obsolete("DisconnectAllConnections was renamed to DisconnectAllExternalConnections because that's what it does.")]
-        public static void DisconnectAllConnections() => DisconnectAllExternalConnections();
+        /// <summary>Disconnect all currently connected clients except the local connection.</summary>
+        [Obsolete("Call NetworkClient.DisconnectAll() instead")]
+        public static void DisconnectAllExternalConnections() => DisconnectAll();
+
+        [Obsolete("Call NetworkClient.DisconnectAll() instead")]
+        public static void DisconnectAllConnections() => DisconnectAll();
 
         // add/remove/replace player ///////////////////////////////////////////
         /// <summary>Called by server after AddPlayer message to add the player for the connection.</summary>
@@ -957,6 +955,8 @@ namespace Mirror
                 return false;
 
             NetworkIdentity[] identities = Resources.FindObjectsOfTypeAll<NetworkIdentity>();
+
+            // first pass: activate all scene objects
             foreach (NetworkIdentity identity in identities)
             {
                 if (ValidateSceneObject(identity))
@@ -966,6 +966,7 @@ namespace Mirror
                 }
             }
 
+            // second pass: spawn all scene objects
             foreach (NetworkIdentity identity in identities)
             {
                 if (ValidateSceneObject(identity))
@@ -1092,11 +1093,11 @@ namespace Mirror
 
             identity.connectionToClient?.RemoveOwnedObject(identity);
 
-            ObjectDestroyMessage msg = new ObjectDestroyMessage
+            ObjectDestroyMessage message = new ObjectDestroyMessage
             {
                 netId = identity.netId
             };
-            SendToObservers(identity, msg);
+            SendToObservers(identity, message);
 
             identity.ClearObservers();
             if (NetworkClient.active && localClientActive)
@@ -1357,6 +1358,52 @@ namespace Mirror
         static Dictionary<NetworkIdentity, Serialization> serializations =
             new Dictionary<NetworkIdentity, Serialization>();
 
+        // helper function to get an entity's serialization with caching
+        static Serialization GetEntitySerialization(NetworkIdentity identity)
+        {
+            // multiple connections might be observed by the
+            // same NetworkIdentity, but we don't want to
+            // serialize them multiple times. look it up first.
+            //
+            // IMPORTANT: don't forget to return them to pool!
+            // TODO make this easier later. for now aim for
+            //      feature parity to not break projects.
+            // TODO let the entity cache it's own serialization
+            //      and recompute only if it was dirty.
+            if (!serializations.ContainsKey(identity))
+            {
+                // serialize all the dirty components.
+                // one version for owner, one for observers.
+                PooledNetworkWriter ownerWriter = NetworkWriterPool.GetWriter();
+                PooledNetworkWriter observersWriter = NetworkWriterPool.GetWriter();
+                identity.OnSerializeAllSafely(false, ownerWriter, out int ownerWritten, observersWriter, out int observersWritten);
+                serializations[identity] = new Serialization
+                {
+                    ownerWriter = ownerWriter,
+                    observersWriter = observersWriter,
+                    ownerWritten = ownerWritten,
+                    observersWritten = observersWritten
+                };
+
+                // clear dirty bits only for the components that we serialized
+                // DO NOT clean ALL component's dirty bits, because
+                // components can have different syncIntervals and we don't
+                // want to reset dirty bits for the ones that were not
+                // synced yet.
+                // (we serialized only the IsDirty() components, or all of
+                //  them if initialState. clearing the dirty ones is enough.)
+                //
+                // NOTE: this is what we did before push->pull
+                //       broadcasting. let's keep doing this for
+                //       feature parity to not break anyone's project.
+                //       TODO make this more simple / unnecessary later.
+                identity.ClearDirtyComponentsDirtyBits();
+            }
+
+            // return the serialization
+            return serializations[identity];
+        }
+
         // NetworkLateUpdate called after any Update/FixedUpdate/LateUpdate
         // (we add this to the UnityEngine in NetworkLoop)
         internal static void NetworkLateUpdate()
@@ -1392,45 +1439,8 @@ namespace Mirror
                             //  NetworkServer.Destroy)
                             if (identity != null)
                             {
-                                // multiple connections might be observed by the
-                                // same NetworkIdentity, but we don't want to
-                                // serialize them multiple times. look it up first.
-                                //
-                                // IMPORTANT: don't forget to return them to pool!
-                                // TODO make this easier later. for now aim for
-                                //      feature parity to not break projects.
-                                if (!serializations.ContainsKey(identity))
-                                {
-                                    // serialize all the dirty components.
-                                    // one version for owner, one for observers.
-                                    PooledNetworkWriter ownerWriter = NetworkWriterPool.GetWriter();
-                                    PooledNetworkWriter observersWriter = NetworkWriterPool.GetWriter();
-                                    identity.OnSerializeAllSafely(false, ownerWriter, out int ownerWritten, observersWriter, out int observersWritten);
-                                    serializations[identity] = new Serialization
-                                    {
-                                        ownerWriter = ownerWriter,
-                                        observersWriter = observersWriter,
-                                        ownerWritten = ownerWritten,
-                                        observersWritten = observersWritten
-                                    };
-
-                                    // clear dirty bits only for the components that we serialized
-                                    // DO NOT clean ALL component's dirty bits, because
-                                    // components can have different syncIntervals and we don't
-                                    // want to reset dirty bits for the ones that were not
-                                    // synced yet.
-                                    // (we serialized only the IsDirty() components, or all of
-                                    //  them if initialState. clearing the dirty ones is enough.)
-                                    //
-                                    // NOTE: this is what we did before push->pull
-                                    //       broadcasting. let's keep doing this for
-                                    //       feature parity to not break anyone's project.
-                                    //       TODO make this more simple / unnecessary later.
-                                    identity.ClearDirtyComponentsDirtyBits();
-                                }
-
-                                // get serialization
-                                Serialization serialization = serializations[identity];
+                                // get serialization for this entity (cached)
+                                Serialization serialization = GetEntitySerialization(identity);
 
                                 // is this entity owned by this connection?
                                 bool owned = identity.connectionToClient == connection;
