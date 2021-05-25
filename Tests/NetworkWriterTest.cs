@@ -116,7 +116,7 @@ namespace Mirror.Tests
         }
 
         [Test]
-        public void TestReading0LengthBytesAnsSize()
+        public void TestReading0LengthBytesAndSize()
         {
             NetworkWriter writer = new NetworkWriter();
             writer.WriteBytesAndSize(new byte[]{});
@@ -474,6 +474,32 @@ namespace Mirror.Tests
                 NetworkReader reader = new NetworkReader(data);
                 Assert.Throws<System.Text.DecoderFallbackException>(() => reader.ReadString());
             }
+        }
+
+        [Test]
+        public void TestReadingTruncatedString()
+        {
+            NetworkWriter writer = new NetworkWriter();
+            writer.Write("a string longer than 10 bytes");
+            writer.SetLength(10);
+            NetworkReader reader = new NetworkReader(writer.ToArray());
+            Assert.Throws<System.IO.EndOfStreamException>(() => reader.ReadString());
+        }
+
+        [Test]
+        public void TestStringBinaryCompat()
+        {
+            NetworkWriter writer = new NetworkWriter();
+            writer.Write("");
+            writer.Write("short string");
+            writer.Write(string.Join("0", new string[100000]));
+            byte[] data = writer.ToArray();
+            byte[] expect = new byte[]{1,0,1,12,115,104,111,114,116,32,115,116,114,105,110,103,1,159,141,6};
+            Assert.That(data.Length, Is.EqualTo(100019));
+            for (int i = 0; i < expect.Length; i++)
+                Assert.That(data[i], Is.EqualTo(expect[i]), $"index {i}");
+            for (int i = expect.Length; i < data.Length; i++)
+                Assert.That(data[i], Is.EqualTo(48), $"index {i}");
         }
 
         [Test]
