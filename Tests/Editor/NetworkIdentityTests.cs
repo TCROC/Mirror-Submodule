@@ -223,6 +223,14 @@ namespace Mirror.Tests
                 // OnRebuildObservers, but return no observers
                 return true;
             }
+
+            public int hostVisibilityCalled;
+            public bool hostVisibilityValue;
+            public override void OnSetHostVisibility(bool visible)
+            {
+                ++hostVisibilityCalled;
+                hostVisibilityValue = visible;
+            }
         }
 
         class IsClientServerCheckComponent : NetworkBehaviour
@@ -1394,6 +1402,35 @@ namespace Mirror.Tests
         }
 
         [Test]
+        public void RebuildObserversAddsReadyComponentConnectionsIfImplemented()
+        {
+            // AddObserver will call transport.send and validpacketsize, so we
+            // actually need a transport
+            Transport.activeTransport = new MemoryTransport();
+
+            // add three observers components
+            // one with a ready connection, one with no ready connection, one with null connection
+            RebuildObserversNetworkBehaviour compA = gameObject.AddComponent<RebuildObserversNetworkBehaviour>();
+            compA.observer = null;
+            RebuildObserversNetworkBehaviour compB = gameObject.AddComponent<RebuildObserversNetworkBehaviour>();
+            compB.observer = new NetworkConnectionToClient(42){ isReady = false };
+            RebuildObserversNetworkBehaviour compC = gameObject.AddComponent<RebuildObserversNetworkBehaviour>();
+            compC.observer = new NetworkConnectionToClient(43){ isReady = true };
+
+            // call OnStartServer so that observers dict is created
+            identity.OnStartServer();
+
+            // rebuild observers should add all component's ready observers
+            identity.RebuildObservers(true);
+            Assert.That(identity.observers.Count, Is.EqualTo(1));
+            Assert.That(identity.observers.ContainsKey(43));
+
+            // clean up
+            NetworkServer.Shutdown();
+            Transport.activeTransport = null;
+        }
+
+        [Test]
         public void RebuildObserversAddsReadyServerConnectionsIfNotImplemented()
         {
             // AddObserver will call transport.send and validpacketsize, so we
@@ -1442,6 +1479,35 @@ namespace Mirror.Tests
             // clean up
             NetworkServer.Shutdown();
             Transport.activeTransport = null;
+        }
+
+        [Test]
+        public void RebuildObserversSetsHostVisibility()
+        {
+            // set local connection for host mode
+            ULocalConnectionToClient localConnection = new ULocalConnectionToClient();
+            localConnection.connectionToServer = new ULocalConnectionToServer();
+            localConnection.isReady = true;
+            NetworkServer.SetLocalConnection(localConnection);
+
+            // add at least one observers component, otherwise it will just add
+            // all server connections
+            RebuildEmptyObserversNetworkBehaviour comp = gameObject.AddComponent<RebuildEmptyObserversNetworkBehaviour>();
+            Assert.That(comp.hostVisibilityCalled, Is.EqualTo(0));
+
+            // call OnStartServer so that observers dict is created
+            identity.OnStartServer();
+
+            // rebuild will result in 0 observers. it won't contain host
+            // connection so it should call OnSetHostVisibility(false)
+            identity.RebuildObservers(true);
+            Assert.That(identity.observers.Count, Is.EqualTo(0));
+            Assert.That(comp.hostVisibilityCalled, Is.EqualTo(1));
+            Assert.That(comp.hostVisibilityValue, Is.False);
+
+            // clean up
+            NetworkServer.RemoveLocalConnection();
+            NetworkServer.Shutdown();
         }
     }
 }
