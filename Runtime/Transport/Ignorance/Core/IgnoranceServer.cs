@@ -145,17 +145,20 @@ namespace IgnoranceTransport
                                 break;
 
                             // Boot a Peer off the Server.
-                            case IgnoranceCommandType.ServerKickPeer:
-                                if (!serverPeerArray[commandPacket.PeerId].IsSet) continue;
-                                serverPeerArray[commandPacket.PeerId].DisconnectNow(0);
+                            case IgnoranceCommandType.ServerKickPeer:						
+								uint targetPeer = commandPacket.PeerId;
+								
+                                if (!serverPeerArray[targetPeer].IsSet) continue;
+								if (setupInfo.Verbosity > 0)
+									Debug.Log($"Server Worker Thread: Peer ID {targetPeer} getting the boot.");
+
+                                serverPeerArray[targetPeer].DisconnectNow(0);
                                 break;
                         }
                     }
 
                     // Step One:
                     // ---> Sending to peers
-                    // System.Console.WriteLine($"Outgoing Queue is {Outgoing.Count}");
-
                     while (Outgoing.TryDequeue(out IgnoranceOutgoingPacket outgoingPacket))
                     {
                         // Only create a packet if the server knows the peer.
