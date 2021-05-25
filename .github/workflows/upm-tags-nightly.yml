@@ -102,10 +102,10 @@ jobs:
             echo "Moving file at path $GITHUB_WORKSPACE/theirRepo/$submoduleFile"
             sudo mv -v "$GITHUB_WORKSPACE/theirRepo/$submoduleFile" "$GITHUB_WORKSPACE/myRepo/"
           done
-          for submoduleParentFolder in $SUBMODULE_FOLDER_CONTENTS
+          for submoduleFolder in $SUBMODULE_FOLDERS
           do
-            echo "Moving folder at path $GITHUB_WORKSPACE/theirRepo/$submoduleParentFolder"
-            sudo mv -v "$GITHUB_WORKSPACE/theirRepo/$submoduleParentFolder"/* "$GITHUB_WORKSPACE/myRepo/"
+            echo "Moving folder at path $GITHUB_WORKSPACE/theirRepo/$submoduleFolder"
+            sudo mv -v "$GITHUB_WORKSPACE/theirRepo/$submoduleFolder"/* "$GITHUB_WORKSPACE/myRepo/"
           done
           sudo cp -a "$GITHUB_WORKSPACE/SUBMODULE-Files/." "$GITHUB_WORKSPACE/myRepo/"
           git add -A
@@ -117,7 +117,7 @@ jobs:
         done
       env:
         SUBMODULE_FILES: "LICENSE README.md CONTRIBUTING.md"
-        SUBMODULE_FOLDER_CONTENTS: "Assets/Mirror"
+        SUBMODULE_FOLDERS: "Assets/Mirror"
         SUBMODULE_BRANCH: releases/submodule
         REQUIRED_PREFIXES: "v"
         EXCLUDED_PREFIXES: ""
