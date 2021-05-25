@@ -28,10 +28,8 @@ namespace Mirror
         public static bool ready;
 
         /// <summary>The NetworkConnection object that is currently "ready".</summary>
-        // This connection can be used to send messages to the server. There can
-        // only be one ClientScene and ready connection at a time.
-        // TODO redundant state. it's set when .connection is set to .ready
-        public static NetworkConnection readyConnection { get; internal set; }
+        // TODO this is from UNET. it's redundant and we should probably obsolete it.
+        public static NetworkConnection readyConnection => ready ? connection : null;
 
         /// <summary>NetworkIdentity of the localPlayer </summary>
         public static NetworkIdentity localPlayer { get; internal set; }
@@ -775,8 +773,7 @@ namespace Mirror
                 // Set these before sending the ReadyMessage, otherwise host client
                 // will fail in InternalAddPlayer with null readyConnection.
                 ready = true;
-                readyConnection = conn;
-                readyConnection.isReady = true;
+                connection.isReady = true;
 
                 // Tell server we're ready to have a player object spawned
                 conn.Send(new ReadyMessage());
@@ -788,11 +785,7 @@ namespace Mirror
 
         internal static void HandleClientDisconnect(NetworkConnection conn)
         {
-            if (readyConnection == conn && ready)
-            {
-                ready = false;
-                readyConnection = null;
-            }
+            ready = false;
         }
 
         // add player //////////////////////////////////////////////////////////
@@ -809,9 +802,11 @@ namespace Mirror
             // is called before OnStartLocalPlayer, hence it's already set.
             // localPlayer.isClient = true;
 
-            if (readyConnection != null)
+            // TODO this check might not be necessary
+            //if (readyConnection != null)
+            if (ready && connection != null)
             {
-                readyConnection.identity = identity;
+                connection.identity = identity;
             }
             else Debug.LogWarning("No ready connection found for setting player controller during InternalAddPlayer");
         }
@@ -831,7 +826,7 @@ namespace Mirror
             if (readyConn != null)
             {
                 ready = true;
-                readyConnection = readyConn;
+                connection = readyConn;
             }
 
             if (!ready)
@@ -840,14 +835,14 @@ namespace Mirror
                 return false;
             }
 
-            if (readyConnection.identity != null)
+            if (connection.identity != null)
             {
                 Debug.LogError("NetworkClient.AddPlayer: a PlayerController was already added. Did you call AddPlayer twice?");
                 return false;
             }
 
             // Debug.Log("NetworkClient.AddPlayer() called with connection [" + readyConnection + "]");
-            readyConnection.Send(new AddPlayerMessage());
+            connection.Send(new AddPlayerMessage());
             return true;
         }
 
@@ -1131,7 +1126,7 @@ namespace Mirror
             {
                 // Set isLocalPlayer to true on this NetworkIdentity and trigger
                 // OnStartLocalPlayer in all scripts on the same GO
-                identity.connectionToServer = readyConnection;
+                identity.connectionToServer = connection;
                 identity.OnStartLocalPlayer();
                 // Debug.Log("NetworkClient.OnOwnerMessage - player=" + identity.name);
             }
@@ -1258,7 +1253,6 @@ namespace Mirror
             Debug.Log("Shutting down client.");
             ClearSpawners();
             spawnableObjects.Clear();
-            readyConnection = null;
             ready = false;
             isSpawnFinished = false;
             DestroyAllClientObjects();

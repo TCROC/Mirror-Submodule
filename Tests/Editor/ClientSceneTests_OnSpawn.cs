@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -631,9 +630,8 @@ namespace Mirror.Tests.ClientSceneTests
                 payload = default,
             };
 
-            PropertyInfo readyConnProperty = typeof(ClientScene).GetProperty(nameof(NetworkClient.readyConnection));
-            readyConnProperty.SetValue(null, new FakeNetworkConnection());
-
+            NetworkClient.connection = new FakeNetworkConnection();
+            NetworkClient.ready = true;
             NetworkClient.ApplySpawnPayload(identity, msg);
 
             Assert.That(NetworkClient.localPlayer, Is.EqualTo(identity));
