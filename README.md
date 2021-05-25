@@ -15,3 +15,5 @@ git submodule add https://github.com/vis2k/Mirror.git Assets/Submodules/Mirror
 cd Assets/Submodules/Mirror
 git checkout v35.1.0
 ```
+
+For the Ignorance transport, see: https://github.com/TCROC/Ignorance-Submodule
