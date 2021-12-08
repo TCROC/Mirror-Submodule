@@ -13,6 +13,8 @@ namespace Mirror
         /// <summary>Average out the last few results from Ping</summary>
         public static int PingWindowSize = 10;
 
+        public static double InstantRTT;
+
         static double lastPingTime;
 
         // Date and time when the application started
@@ -75,6 +77,7 @@ namespace Mirror
 
             // how long did this message take to come back
             double newRtt = now - message.clientTime;
+            InstantRTT = newRtt;
             _rtt.Add(newRtt);
 
             // the difference in time between the client and the server
