@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using JetBrains.Annotations;
 
 namespace Mirror
 {
@@ -56,7 +55,7 @@ namespace Mirror
 
         // throw away all the changes
         // this should be called after a successful sync
-        public void Flush() => changes.Clear();
+        public void ClearChanges() => changes.Clear();
 
         public SyncIDictionary(IDictionary<TKey, TValue> objects)
         {
@@ -257,7 +256,7 @@ namespace Mirror
             return TryGetValue(item.Key, out TValue val) && EqualityComparer<TValue>.Default.Equals(val, item.Value);
         }
 
-        public void CopyTo([NotNull] KeyValuePair<TKey, TValue>[] array, int arrayIndex)
+        public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex)
         {
             if (arrayIndex < 0 || arrayIndex > array.Length)
             {

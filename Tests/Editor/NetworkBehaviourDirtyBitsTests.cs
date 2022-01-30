@@ -41,27 +41,17 @@ namespace Mirror.Tests
         [Test]
         public void DirtyObjectBits()
         {
-            CreateNetworked(out GameObject _, out NetworkIdentity _, out NetworkBehaviourInitSyncObjectExposed comp);
+            CreateNetworked(out GameObject _, out NetworkIdentity _, out NetworkBehaviourWithSyncVarsAndCollections comp);
 
             // not dirty by default
             Assert.That(comp.DirtyObjectBits(), Is.EqualTo(0b0));
 
-            // add a dirty synclist
-            SyncList<int> dirtyList = new SyncList<int>();
-            dirtyList.Add(42);
-            Assert.That(dirtyList.IsDirty, Is.True);
-            comp.InitSyncObjectExposed(dirtyList);
-
-            // add a clean synclist
-            SyncList<int> cleanList = new SyncList<int>();
-            Assert.That(cleanList.IsDirty, Is.False);
-            comp.InitSyncObjectExposed(cleanList);
-
-            // get bits - only first one should be dirty
+            // dirty the list
+            comp.list.Add(42);
             Assert.That(comp.DirtyObjectBits(), Is.EqualTo(0b01));
 
-            // set second one dirty. now we should have two dirty bits
-            cleanList.Add(43);
+            // dirty the dict too. now we should have two dirty bits
+            comp.dict[43] = null;
             Assert.That(comp.DirtyObjectBits(), Is.EqualTo(0b11));
         }
 
@@ -82,7 +72,7 @@ namespace Mirror.Tests
             Assert.That(comp.AnySyncObjectDirty(), Is.True);
 
             // set list not dirty. dict should still make it dirty.
-            comp.list.Flush();
+            comp.list.ClearChanges();
             Assert.That(comp.AnySyncObjectDirty(), Is.True);
         }
 
@@ -130,25 +120,19 @@ namespace Mirror.Tests
         [Test]
         public void ClearAllDirtyBitsClearsSyncObjectsDirtyBits()
         {
-            CreateNetworked(out GameObject _, out NetworkIdentity _, out NetworkBehaviourInitSyncObjectExposed comp);
+            CreateNetworked(out GameObject _, out NetworkIdentity _, out NetworkBehaviourWithSyncVarsAndCollections comp);
 
             // set syncinterval so dirtybit works fine
             comp.syncInterval = 0;
             Assert.That(comp.IsDirty(), Is.False);
 
-            // create a synclist and dirty it
-            SyncList<int> obj = new SyncList<int>();
-            obj.Add(42);
-            Assert.That(obj.IsDirty, Is.True);
-
-            // add it
-            comp.InitSyncObjectExposed(obj);
+            // dirty the synclist
+            comp.list.Add(42);
             Assert.That(comp.IsDirty, Is.True);
 
             // clear bits should clear synclist bits too
             comp.ClearAllDirtyBits();
             Assert.That(comp.IsDirty, Is.False);
-            Assert.That(obj.IsDirty, Is.False);
         }
     }
 

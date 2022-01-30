@@ -118,6 +118,7 @@ namespace Mirror
         }
 
         // creates a 64 bit dirty mask for Sync Collections (aka SyncObjects)
+        // TODO 64 SyncLists are too much. consider smaller mask later.
         internal ulong DirtyObjectBits()
         {
             ulong dirtyObjects = 0;
@@ -154,11 +155,11 @@ namespace Mirror
             lastSyncTime = NetworkTime.localTime;
             syncVarDirtyBits = 0L;
 
-            // flush all unsynchronized changes in syncobjects
+            // clear all unsynchronized changes in syncobjects
             // (Linq allocates, use for instead)
             for (int i = 0; i < syncObjects.Count; ++i)
             {
-                syncObjects[i].Flush();
+                syncObjects[i].ClearChanges();
             }
         }
 
@@ -168,9 +169,11 @@ namespace Mirror
         protected void InitSyncObject(SyncObject syncObject)
         {
             if (syncObject == null)
+            {
                 Debug.LogError("Uninitialized SyncObject. Manually call the constructor on your SyncList, SyncSet or SyncDictionary");
-            else
-                syncObjects.Add(syncObject);
+                return;
+            }
+            syncObjects.Add(syncObject);
         }
 
         protected void SendCommandInternal(Type invokeClass, string cmdName, NetworkWriter writer, int channelId, bool requiresAuthority = true)
