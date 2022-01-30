@@ -56,24 +56,6 @@ namespace Mirror
         /// <summary>Server's network connection to the client. This is only valid for player objects on the server.</summary>
         public NetworkConnection connectionToClient => netIdentity.connectionToClient;
 
-        protected ulong syncVarDirtyBits { get; private set; }
-        ulong syncVarHookGuard;
-
-        // USED BY WEAVER to set syncvars in host mode without deadlocking
-        protected bool getSyncVarHookGuard(ulong dirtyBit)
-        {
-            return (syncVarHookGuard & dirtyBit) != 0UL;
-        }
-
-        // USED BY WEAVER to set syncvars in host mode without deadlocking
-        protected void setSyncVarHookGuard(ulong dirtyBit, bool value)
-        {
-            if (value)
-                syncVarHookGuard |= dirtyBit;
-            else
-                syncVarHookGuard &= ~dirtyBit;
-        }
-
         // SyncLists, SyncSets, etc.
         protected readonly List<SyncObject> syncObjects = new List<SyncObject>();
 
@@ -86,6 +68,99 @@ namespace Mirror
 
         /// <summary>Returns the index of the component on this object</summary>
         public int ComponentIndex { get; internal set; }
+
+        // to avoid fully serializing entities every time, we have two options:
+        // * run a delta compression algorithm
+        //   -> for fixed size types this is as easy as varint(b-a) for all
+        //   -> for dynamically sized types like strings this is not easy.
+        //      algorithms need to detect inserts/deletions, i.e. Myers Diff.
+        //      those are very cpu intensive and barely fast enough for large
+        //      scale multiplayer games (in Unity)
+        // * or we use dirty bits as meta data about which fields have changed
+        //   -> spares us from running delta algorithms
+        //   -> still supports dynamically sized types
+        //
+        // syncVarDirtyBits is a 64 bit mask, tracking up to 64 SyncVars.
+        // (NOT for SyncLists/Dicts/Sets. AnySyncObjectDirty checks them.)
+        protected ulong syncVarDirtyBits { get; private set; }
+
+        // hook guard to avoid deadlocks when calling hooks in host mode
+        ulong syncVarHookGuard;
+
+        // USED BY WEAVER to set syncvars in host mode without deadlocking
+        protected bool GetSyncVarHookGuard(ulong dirtyBit) =>
+            (syncVarHookGuard & dirtyBit) != 0UL;
+
+        // DEPRECATED 2021-09-16 (old weavers used it)
+        [Obsolete("Renamed to GetSyncVarHookGuard (uppercase)")]
+        protected bool getSyncVarHookGuard(ulong dirtyBit) => GetSyncVarHookGuard(dirtyBit);
+
+        // USED BY WEAVER to set syncvars in host mode without deadlocking
+        protected void SetSyncVarHookGuard(ulong dirtyBit, bool value)
+        {
+            // set the bit
+            if (value)
+                syncVarHookGuard |= dirtyBit;
+            // clear the bit
+            else
+                syncVarHookGuard &= ~dirtyBit;
+        }
+
+        // DEPRECATED 2021-09-16 (old weavers used it)
+        [Obsolete("Renamed to SetSyncVarHookGuard (uppercase)")]
+        protected void setSyncVarHookGuard(ulong dirtyBit, bool value) => SetSyncVarHookGuard(dirtyBit, value);
+
+        /// <summary>Set as dirty so that it's synced to clients again.</summary>
+        // these are masks, not bit numbers, ie. 110011b not '2' for 2nd bit.
+        public void SetDirtyBit(ulong dirtyBit)
+        {
+            syncVarDirtyBits |= dirtyBit;
+        }
+
+        // creates a 64 bit dirty mask for Sync Collections (aka SyncObjects)
+        internal ulong DirtyObjectBits()
+        {
+            ulong dirtyObjects = 0;
+            for (int i = 0; i < syncObjects.Count; i++)
+            {
+                SyncObject syncObject = syncObjects[i];
+                if (syncObject.IsDirty)
+                {
+                    dirtyObjects |= 1UL << i;
+                }
+            }
+            return dirtyObjects;
+        }
+
+        // internal for tests
+        // reuses DirtyObjectBits for simplicity.
+        internal bool AnySyncObjectDirty() => DirtyObjectBits() != 0UL;
+
+        // true if syncInterval elapsed and any SyncVar or SyncObject is dirty
+        public bool IsDirty()
+        {
+            if (NetworkTime.localTime - lastSyncTime >= syncInterval)
+            {
+                return syncVarDirtyBits != 0L || AnySyncObjectDirty();
+            }
+            return false;
+        }
+
+        /// <summary>Clears all the dirty bits that were set by SetDirtyBits()</summary>
+        // automatically invoked when an update is sent for this object, but can
+        // be called manually as well.
+        public void ClearAllDirtyBits()
+        {
+            lastSyncTime = NetworkTime.localTime;
+            syncVarDirtyBits = 0L;
+
+            // flush all unsynchronized changes in syncobjects
+            // (Linq allocates, use for instead)
+            for (int i = 0; i < syncObjects.Count; ++i)
+            {
+                syncObjects[i].Flush();
+            }
+        }
 
         // this gets called in the constructor by the weaver
         // for every SyncObject in the component (e.g. SyncLists).
@@ -257,7 +332,7 @@ namespace Mirror
         // helper function for [SyncVar] GameObjects.
         protected void SetSyncVarGameObject(GameObject newGameObject, ref GameObject gameObjectField, ulong dirtyBit, ref uint netIdField)
         {
-            if (getSyncVarHookGuard(dirtyBit))
+            if (GetSyncVarHookGuard(dirtyBit))
                 return;
 
             uint newNetId = 0;
@@ -320,7 +395,7 @@ namespace Mirror
         // helper function for [SyncVar] NetworkIdentities.
         protected void SetSyncVarNetworkIdentity(NetworkIdentity newIdentity, ref NetworkIdentity identityField, ulong dirtyBit, ref uint netIdField)
         {
-            if (getSyncVarHookGuard(dirtyBit))
+            if (GetSyncVarHookGuard(dirtyBit))
                 return;
 
             uint newNetId = 0;
@@ -377,7 +452,7 @@ namespace Mirror
         // helper function for [SyncVar] NetworkIdentities.
         protected void SetSyncVarNetworkBehaviour<T>(T newBehaviour, ref T behaviourField, ulong dirtyBit, ref NetworkBehaviourSyncVar syncField) where T : NetworkBehaviour
         {
-            if (getSyncVarHookGuard(dirtyBit))
+            if (GetSyncVarHookGuard(dirtyBit))
                 return;
 
             uint newNetId = 0;
@@ -465,56 +540,6 @@ namespace Mirror
             fieldValue = value;
         }
 
-        /// <summary>Set as dirty so that it's synced to clients again.</summary>
-        // these are masks, not bit numbers, ie. 0x004 not 2
-        public void SetDirtyBit(ulong dirtyBit)
-        {
-            syncVarDirtyBits |= dirtyBit;
-        }
-
-        /// <summary>Clears all the dirty bits that were set by SetDirtyBits()</summary>
-        // automatically invoked when an update is sent for this object, but can
-        // be called manually as well.
-        public void ClearAllDirtyBits()
-        {
-            lastSyncTime = NetworkTime.localTime;
-            syncVarDirtyBits = 0L;
-
-            // flush all unsynchronized changes in syncobjects
-            // note: don't use List.ForEach here, this is a hot path
-            //   List.ForEach: 432b/frame
-            //   for: 231b/frame
-            for (int i = 0; i < syncObjects.Count; ++i)
-            {
-                syncObjects[i].Flush();
-            }
-        }
-
-        bool AnySyncObjectDirty()
-        {
-            // note: don't use Linq here. 1200 networked objects:
-            //   Linq: 187KB GC/frame;, 2.66ms time
-            //   for: 8KB GC/frame; 1.28ms time
-            for (int i = 0; i < syncObjects.Count; ++i)
-            {
-                if (syncObjects[i].IsDirty)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        // true if syncInterval elapsed and any SyncVar or SyncObject is dirty
-        public bool IsDirty()
-        {
-            if (NetworkTime.localTime - lastSyncTime >= syncInterval)
-            {
-                return syncVarDirtyBits != 0L || AnySyncObjectDirty();
-            }
-            return false;
-        }
-
         /// <summary>Override to do custom serialization (instead of SyncVars/SyncLists). Use OnDeserialize too.</summary>
         // if a class has syncvars, then OnSerialize/OnDeserialize are added
         // automatically.
@@ -579,20 +604,6 @@ namespace Mirror
             // else
             //   read syncVarDirtyBits
             //   read dirty SyncVars
-        }
-
-        internal ulong DirtyObjectBits()
-        {
-            ulong dirtyObjects = 0;
-            for (int i = 0; i < syncObjects.Count; i++)
-            {
-                SyncObject syncObject = syncObjects[i];
-                if (syncObject.IsDirty)
-                {
-                    dirtyObjects |= 1UL << i;
-                }
-            }
-            return dirtyObjects;
         }
 
         public bool SerializeObjectsAll(NetworkWriter writer)
