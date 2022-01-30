@@ -1,5 +1,6 @@
 // base class for networking tests to make things easier.
 using System.Collections.Generic;
+using NUnit.Framework;
 using UnityEngine;
 
 namespace Mirror.Tests
@@ -26,9 +27,14 @@ namespace Mirror.Tests
 
         public virtual void TearDown()
         {
+            NetworkClient.Shutdown();
+            NetworkServer.Shutdown();
+
             foreach (GameObject go in instantiated)
                 if (go != null)
                     GameObject.DestroyImmediate(go);
+
+            NetworkIdentity.spawned.Clear();
 
             GameObject.DestroyImmediate(transport.gameObject);
             Transport.activeTransport = null;
@@ -138,21 +144,32 @@ namespace Mirror.Tests
                 Debug.Assert(component.hasAuthority == true, $"Behaviour Had Wrong Authority when spawned, This means that the test is broken and will give the wrong results");
         }
 
+        // fully connect client to local server
+        protected void ConnectClientBlocking()
+        {
+            NetworkClient.Connect("127.0.0.1");
+            UpdateTransport();
+            Assert.That(NetworkServer.connections.Count, Is.EqualTo(1));
+        }
+
         protected void UpdateTransport()
         {
             transport.ClientEarlyUpdate();
             transport.ServerEarlyUpdate();
         }
 
-        protected static void ProcessMessages()
+        protected void ProcessMessages()
         {
             // server & client need to be active
             Debug.Assert(NetworkClient.active, "NetworkClient needs to be active before spawning.");
             Debug.Assert(NetworkServer.active, "NetworkServer needs to be active before spawning.");
 
-            // run update so message are processed
-            NetworkServer.NetworkLateUpdate();
+            // update server & client so batched messages are flushed
             NetworkClient.NetworkLateUpdate();
+            NetworkServer.NetworkLateUpdate();
+
+            // update transport so sent messages are received
+            UpdateTransport();
         }
     }
 }

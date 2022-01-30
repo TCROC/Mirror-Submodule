@@ -261,17 +261,6 @@ namespace Mirror.Tests
             }
         }
 
-        [TearDown]
-        public override void TearDown()
-        {
-            // cleanup
-            NetworkClient.Shutdown();
-            NetworkServer.Shutdown();
-            NetworkIdentity.spawned.Clear();
-
-            base.TearDown();
-        }
-
         // A Test behaves as an ordinary method
         [Test]
         public void OnStartServerTest()
