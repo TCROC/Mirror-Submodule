@@ -1129,13 +1129,6 @@ namespace Mirror.Weaver
                 return;
             }
 
-            if (names.Contains(md.Name))
-            {
-                Log.Error($"Duplicate ClientRpc name {md.Name}", md);
-                WeavingFailed = true;
-                return;
-            }
-
             bool includeOwner = clientRpcAttr.GetField("includeOwner", true);
 
             names.Add(md.Name);
@@ -1168,12 +1161,6 @@ namespace Mirror.Weaver
             if (!ValidateRemoteCallAndParameters(md, RemoteCallType.TargetRpc, ref WeavingFailed))
                 return;
 
-            if (names.Contains(md.Name))
-            {
-                Log.Error($"Duplicate Target Rpc name {md.Name}", md);
-                WeavingFailed = true;
-                return;
-            }
             names.Add(md.Name);
             targetRpcs.Add(md);
 
