@@ -35,6 +35,13 @@ namespace Mirror.Tests
         }
         */
 
+        // Write/ReadBlittable assumes same endianness on server & client.
+        [Test]
+        public void LittleEndianPlatform()
+        {
+            Assert.That(BitConverter.IsLittleEndian, Is.True);
+        }
+
         [Test]
         public void TestWritingSmallMessage()
         {
@@ -1271,7 +1278,7 @@ namespace Mirror.Tests
                 _ = reader.ReadArray<int>();
             });
             // todo improve this message check
-            Assert.That(exception, Has.Message.Contains($"ReadByte out of range"));
+            Assert.That(exception, Has.Message.Contains($"ReadBlittable<System.Int32> out of range"));
 
             void WriteBadArray()
             {
