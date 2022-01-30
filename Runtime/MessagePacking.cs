@@ -11,7 +11,16 @@ namespace Mirror
     public static class MessagePacking
     {
         // message header size
-        internal const int HeaderSize = sizeof(ushort);
+        public const int HeaderSize = sizeof(ushort);
+
+        // max message content size (without header) calculation for convenience
+        // -> Transport.GetMaxPacketSize is the raw maximum
+        // -> Every message gets serialized into <<id, content>>
+        // -> Every serialized message get put into a batch with a header
+        public static int MaxContentSize =>
+            Transport.activeTransport.GetMaxPacketSize()
+            - HeaderSize
+            - Batcher.HeaderSize;
 
         public static ushort GetId<T>() where T : struct, NetworkMessage
         {
@@ -110,7 +119,7 @@ namespace Mirror
             }
             catch (Exception e)
             {
-                Debug.LogError($"Exception in MessageHandler: {e.GetType().Name} {e.Message}\n{e.StackTrace}");
+                Debug.LogError($"Disconnecting connId={conn.connectionId} to prevent exploits from an Exception in MessageHandler: {e.GetType().Name} {e.Message}\n{e.StackTrace}");
                 conn.Disconnect();
             }
         };
