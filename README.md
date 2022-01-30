@@ -106,6 +106,8 @@ If you are migrating from UNET, then please check out our [Migration Guide](http
 
 And [many more](https://mirror-networking.com/showcase/)...
 
+Build for the **Metaverse**, with **Mirror Networking**!
+
 ## Mirror LTS (Long Term Support)
 
 If you use Mirror in production, consider Mirror LTS!
@@ -140,9 +142,6 @@ Mirror is used **in production** by everything from small indie projects to mill
 
 Therefore it is of utmost importance for us to follow the [KISS principle](https://en.wikipedia.org/wiki/KISS_principle) in order for our games to survive, so that we can still fix networking bugs 10 years from now if needed.
 
-Keeping the next decade in mind, contributing **fixes** / **tests** / **improvements** is highly appreciated while new features have a low probability of being merged.
-
-_At this point, what we don't add to Mirror is more important than what we do add to it!_
 
 # Bug Bounty
 <img src="https://user-images.githubusercontent.com/16416509/110572995-718b5900-8195-11eb-802c-235c82a03bf7.png" height="150">
