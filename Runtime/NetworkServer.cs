@@ -37,9 +37,6 @@ namespace Mirror
         // (this is pretty much always a good idea)
         public static bool batching = true;
 
-        /// <summary>interval in seconds used for batching. 0 means send in every LateUpdate.</summary>
-        public static float batchInterval = 0;
-
         // interest management component (optional)
         // by default, everyone observes everyone
         public static InterestManagement aoi;
@@ -383,7 +380,7 @@ namespace Mirror
             if (connections.Count < maxConnections)
             {
                 // add connection
-                NetworkConnectionToClient conn = new NetworkConnectionToClient(connectionId, batching, batchInterval);
+                NetworkConnectionToClient conn = new NetworkConnectionToClient(connectionId, batching);
                 OnConnected(conn);
             }
             else
@@ -1558,7 +1555,7 @@ namespace Mirror
             if (active)
                 Broadcast();
 
-            // process all incoming messages after updating the world
+            // process all outgoing messages after updating the world
             // (even if not active. still want to process disconnects etc.)
             if (Transport.activeTransport != null)
                 Transport.activeTransport.ServerLateUpdate();
