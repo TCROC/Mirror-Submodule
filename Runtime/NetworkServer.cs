@@ -207,6 +207,7 @@ namespace Mirror
         }
 
         // called by LocalClient to add itself. don't call directly.
+        // TODO consider internal setter instead?
         internal static void SetLocalConnection(LocalConnectionToClient conn)
         {
             if (localConnection != null)
@@ -1228,18 +1229,22 @@ namespace Mirror
 
             identity.connectionToClient?.RemoveOwnedObject(identity);
 
-            ObjectDestroyMessage message = new ObjectDestroyMessage
-            {
-                netId = identity.netId
-            };
-            SendToObservers(identity, message);
-
+            // send object destroy message to all observers, clear observers
+            SendToObservers(identity, new ObjectDestroyMessage{netId = identity.netId});
             identity.ClearObservers();
+
+            // in host mode, call OnStopClient manually
             if (NetworkClient.active && localClientActive)
             {
                 identity.OnStopClient();
+                // The object may have been spawned with host client ownership,
+                // e.g. a pet so we need to clear hasAuthority and call
+                // NotifyAuthority which invokes OnStopAuthority if hasAuthority.
+                identity.hasAuthority = false;
+                identity.NotifyAuthority();
             }
 
+            // we are on the server. call OnStopServer.
             identity.OnStopServer();
 
             // are we supposed to GameObject.Destroy() it completely?

@@ -320,6 +320,32 @@ namespace Mirror.Tests
             Assert.That(NetworkServer.localConnection, Is.Null);
         }
 
+        // test to reproduce https://github.com/vis2k/Mirror/pull/2797
+        [Test]
+        public void Destroy_HostMode_CallsOnStopAuthority()
+        {
+            // listen & connect a HOST client
+            NetworkServer.Listen(1);
+            ConnectHostClientBlockingAuthenticatedAndReady();
+
+            // spawn a player(!) object
+            // otherwise client wouldn't receive spawn / authority messages
+            CreateNetworkedAndSpawnPlayer(out _, out NetworkIdentity player,
+                out StopAuthorityCalledNetworkBehaviour comp,
+                NetworkServer.localConnection);
+
+            // need to have authority for this test
+            Assert.That(player.hasAuthority, Is.True);
+
+            // destroy and ignore 'Destroy called in Edit mode' error
+            LogAssert.ignoreFailingMessages = true;
+            NetworkServer.Destroy(player.gameObject);
+            LogAssert.ignoreFailingMessages = false;
+
+            // destroy should call OnStopAuthority
+            Assert.That(comp.called, Is.EqualTo(1));
+        }
+
         // send a message all the way from client to server
         [Test]
         public void Send_ClientToServerMessage()
