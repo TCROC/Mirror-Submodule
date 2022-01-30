@@ -174,17 +174,28 @@ namespace Mirror
                 Transport.activeTransport.ServerStop();
                 initialized = false;
             }
+
             dontListen = false;
             active = false;
+            isLoadingScene = false;
+
+            connections.Clear();
+            connectionsCopy.Clear();
             handlers.Clear();
 
+            newObservers.Clear();
+
+            // this calls spawned.Clear()
             CleanupSpawned();
+
+            // sets nextNetworkId = 1
             NetworkIdentity.ResetNextNetworkId();
 
             // clear events. someone might have hooked into them before, but
             // we don't want to use those hooks after Shutdown anymore.
             OnConnectedEvent = null;
             OnDisconnectedEvent = null;
+            OnErrorEvent = null;
 
             if (aoi != null) aoi.Reset();
         }
