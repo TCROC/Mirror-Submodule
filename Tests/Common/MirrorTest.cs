@@ -218,9 +218,26 @@ namespace Mirror.Tests
             if (ownerConnection != null)
             {
                 Debug.Assert(componentA.hasAuthority == true, $"Behaviour Had Wrong Authority when spawned, This means that the test is broken and will give the wrong results");
-                Debug.Assert(componentA.hasAuthority == true, $"Behaviour Had Wrong Authority when spawned, This means that the test is broken and will give the wrong results");
+                Debug.Assert(componentB.hasAuthority == true, $"Behaviour Had Wrong Authority when spawned, This means that the test is broken and will give the wrong results");
                 Debug.Assert(componentC.hasAuthority == true, $"Behaviour Had Wrong Authority when spawned, This means that the test is broken and will give the wrong results");
             }
+        }
+
+        // create GameObject + NetworkIdentity + NetworkBehaviour & SPAWN PLAYER.
+        // often times, we really need a player object for the client to receive
+        // certain messages.
+        protected void CreateNetworkedAndSpawnPlayer(out GameObject go, out NetworkIdentity identity, NetworkConnection ownerConnection)
+        {
+            // server & client need to be active before spawning
+            Debug.Assert(NetworkClient.active, "NetworkClient needs to be active before spawning.");
+            Debug.Assert(NetworkServer.active, "NetworkServer needs to be active before spawning.");
+
+            // create a networked object
+            CreateNetworked(out go, out identity);
+
+            // add as player & process spawn message on client.
+            NetworkServer.AddPlayerForConnection(ownerConnection, go);
+            ProcessMessages();
         }
 
         // create GameObject + NetworkIdentity + NetworkBehaviour & SPAWN PLAYER.
