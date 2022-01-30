@@ -1098,6 +1098,38 @@ namespace Mirror.Tests
             Assert.That(identity.netId, Is.Zero);
         }
 
+        [Test]
+        public void UnSpawnAndClearAuthority()
+        {
+            // create scene object with valid netid and set active
+            CreateNetworked(out GameObject go, out NetworkIdentity identity, out StartAuthorityCalledNetworkBehaviour compStart, out StopAuthorityCalledNetworkBehaviour compStop);
+            identity.sceneId = 42;
+            identity.netId = 123;
+            go.SetActive(true);
+
+            // set authority from false to true, which should call OnStartAuthority
+            identity.hasAuthority = true;
+            identity.NotifyAuthority();
+
+            // shouldn't be touched
+            Assert.That(identity.hasAuthority, Is.True);
+            // start should be called
+            Assert.That(compStart.called, Is.EqualTo(1));
+            // stop shouldn't
+            Assert.That(compStop.called, Is.EqualTo(0));
+
+            // unspawn should reset netid and remove authority
+            NetworkServer.UnSpawn(go);
+            Assert.That(identity.netId, Is.Zero);
+
+            // should be changed
+            Assert.That(identity.hasAuthority, Is.False);
+            // same as before
+            Assert.That(compStart.called, Is.EqualTo(1));
+            // stop should be called
+            Assert.That(compStop.called, Is.EqualTo(1));
+        }
+
         // test to reproduce a bug where stopping the server would not call
         // OnStopServer on scene objects:
         // https://github.com/vis2k/Mirror/issues/2119
@@ -1249,6 +1281,33 @@ namespace Mirror.Tests
             // update
             LogAssert.Expect(LogType.Warning, new Regex("Found 'null' entry in observing list.*"));
             NetworkServer.NetworkLateUpdate();
+        }
+
+        // SyncLists/Dict/Set .changes are only flushed when serializing.
+        // if an object has no observers, then serialize is never called.
+        // if we still keep changing the lists, then .changes would grow forever.
+        // => need to make sure that .changes doesn't grow while no observers.
+        [Test]
+        public void SyncObjectChanges_DontGrowWithoutObservers()
+        {
+            NetworkServer.Listen(1);
+            ConnectHostClientBlockingAuthenticatedAndReady();
+
+            // one monster
+            CreateNetworkedAndSpawn(out _, out NetworkIdentity identity, out NetworkBehaviourWithSyncVarsAndCollections comp);
+
+            // without AOI, connections observer everything.
+            // clear the observers first.
+            identity.ClearObservers();
+
+            // insert into a synclist, which would add to .changes
+            comp.list.Add(42);
+
+            // update everything once
+            ProcessMessages();
+
+            // changes should be empty since we have no observers
+            Assert.That(comp.list.GetChangeCount(), Is.EqualTo(0));
         }
     }
 }

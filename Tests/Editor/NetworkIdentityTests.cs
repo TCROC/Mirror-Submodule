@@ -400,7 +400,7 @@ namespace Mirror.Tests
         }
 
         [Test]
-        public void RemoveObserverInternal()
+        public void RemoveObserver()
         {
             CreateNetworked(out GameObject _, out NetworkIdentity identity);
 
@@ -411,12 +411,12 @@ namespace Mirror.Tests
             NetworkConnectionToClient connection = new NetworkConnectionToClient(42);
             identity.observers[connection.connectionId] = connection;
 
-            // RemoveObserverInternal with invalid connection should do nothing
-            identity.RemoveObserverInternal(new NetworkConnectionToClient(43));
+            // RemoveObserver with invalid connection should do nothing
+            identity.RemoveObserver(new NetworkConnectionToClient(43));
             Assert.That(identity.observers.Count, Is.EqualTo(1));
 
-            // RemoveObserverInternal with existing connection should remove it
-            identity.RemoveObserverInternal(connection);
+            // RemoveObserver with existing connection should remove it
+            identity.RemoveObserver(connection);
             Assert.That(identity.observers.Count, Is.EqualTo(0));
         }
 
@@ -693,7 +693,7 @@ namespace Mirror.Tests
             // set it to false, should call OnStopAuthority
             identity.hasAuthority = false;
             identity.NotifyAuthority();
-            // shouldn't be touched
+            // should be changed
             Assert.That(identity.hasAuthority, Is.False);
             // same as before
             Assert.That(compStart.called, Is.EqualTo(1));
