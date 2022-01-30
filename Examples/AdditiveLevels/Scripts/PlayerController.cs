@@ -1,6 +1,6 @@
-using UnityEngine;
+﻿using UnityEngine;
 
-namespace Mirror.Examples.AdditiveScenes
+namespace Mirror.Examples.AdditiveLevels
 {
     [RequireComponent(typeof(CapsuleCollider))]
     [RequireComponent(typeof(CharacterController))]
@@ -9,37 +9,6 @@ namespace Mirror.Examples.AdditiveScenes
     public class PlayerController : NetworkBehaviour
     {
         public CharacterController characterController;
-
-        void OnValidate()
-        {
-            if (characterController == null)
-                characterController = GetComponent<CharacterController>();
-
-            characterController.enabled = false;
-            GetComponent<Rigidbody>().isKinematic = true;
-            GetComponent<NetworkTransform>().clientAuthority = true;
-        }
-
-        public override void OnStartLocalPlayer()
-        {
-            Camera.main.orthographic = false;
-            Camera.main.transform.SetParent(transform);
-            Camera.main.transform.localPosition = new Vector3(0f, 3f, -8f);
-            Camera.main.transform.localEulerAngles = new Vector3(10f, 0f, 0f);
-
-            characterController.enabled = true;
-        }
-
-        void OnDisable()
-        {
-            if (isLocalPlayer && Camera.main != null)
-            {
-                Camera.main.orthographic = true;
-                Camera.main.transform.SetParent(null);
-                Camera.main.transform.localPosition = new Vector3(0f, 70f, 0f);
-                Camera.main.transform.localEulerAngles = new Vector3(90f, 0f, 0f);
-            }
-        }
 
         [Header("Movement Settings")]
         public float moveSpeed = 8f;
@@ -54,6 +23,39 @@ namespace Mirror.Examples.AdditiveScenes
         public bool isGrounded = true;
         public bool isFalling;
         public Vector3 velocity;
+
+        void OnValidate()
+        {
+            if (characterController == null)
+                characterController = GetComponent<CharacterController>();
+
+            characterController.enabled = false;
+            GetComponent<Rigidbody>().isKinematic = true;
+            GetComponent<NetworkTransform>().clientAuthority = true;
+        }
+
+        void OnDisable()
+        {
+            if (isLocalPlayer && Camera.main != null)
+                Camera.main.transform.SetParent(null);
+        }
+
+        void OnDestroy()
+        {
+            if (isLocalPlayer && Camera.main != null)
+                Camera.main.transform.SetParent(null);
+        }
+
+        public override void OnStartLocalPlayer()
+        {
+            //Debug.Log("OnStartLocalPlayer");
+            Camera.main.orthographic = false;
+            Camera.main.transform.SetParent(transform);
+            Camera.main.transform.localPosition = new Vector3(0f, 3f, -8f);
+            Camera.main.transform.localEulerAngles = new Vector3(10f, 0f, 0f);
+
+            characterController.enabled = true;
+        }
 
         void Update()
         {

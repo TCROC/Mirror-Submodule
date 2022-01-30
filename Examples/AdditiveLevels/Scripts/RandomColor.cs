@@ -1,15 +1,9 @@
-using UnityEngine;
+﻿using UnityEngine;
 
-namespace Mirror.Examples.AdditiveScenes
+namespace Mirror.Examples.AdditiveLevels
 {
     public class RandomColor : NetworkBehaviour
     {
-        public override void OnStartServer()
-        {
-            base.OnStartServer();
-            color = Random.ColorHSV(0f, 1f, 1f, 1f, 0.5f, 1f);
-        }
-
         // Color32 packs to 4 bytes
         [SyncVar(hook = nameof(SetColor))]
         public Color32 color = Color.black;
@@ -27,6 +21,16 @@ namespace Mirror.Examples.AdditiveScenes
         void OnDestroy()
         {
             Destroy(cachedMaterial);
+        }
+
+        public override void OnStartServer()
+        {
+            base.OnStartServer();
+
+            // This script is on players that are respawned repeatedly
+            // so once the color has been set, don't change it.
+            if (color == Color.black)
+                color = Random.ColorHSV(0f, 1f, 1f, 1f, 0.5f, 1f);
         }
     }
 }
