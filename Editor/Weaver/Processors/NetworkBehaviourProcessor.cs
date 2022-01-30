@@ -90,7 +90,10 @@ namespace Mirror.Weaver
                 // maybe return false here in the future.
                 return true;
             }
-            GenerateConstants(ref WeavingFailed);
+
+            // inject initializations into static & instance constructor
+            InjectIntoStaticConstructor(ref WeavingFailed);
+            InjectIntoInstanceConstructor(ref WeavingFailed);
 
             GenerateSerialization(ref WeavingFailed);
             if (WeavingFailed)
@@ -230,9 +233,31 @@ namespace Mirror.Weaver
         }
         #endregion
 
-        void GenerateConstants(ref bool WeavingFailed)
+        // helper function to remove 'Ret' from the end of the method if 'Ret'
+        // is the last instruction.
+        // returns false if there was an issue
+        static bool RemoveFinalRetInstruction(MethodDefinition method)
         {
-            if (commands.Count == 0 && clientRpcs.Count == 0 && targetRpcs.Count == 0 && syncObjects.Count == 0)
+            // remove the return opcode from end of function. will add our own later.
+            if (method.Body.Instructions.Count != 0)
+            {
+                Instruction retInstr = method.Body.Instructions[method.Body.Instructions.Count - 1];
+                if (retInstr.OpCode == OpCodes.Ret)
+                {
+                    method.Body.Instructions.RemoveAt(method.Body.Instructions.Count - 1);
+                    return true;
+                }
+                return false;
+            }
+
+            // we did nothing, but there was no error.
+            return true;
+        }
+
+        // we need to inject several initializations into NetworkBehaviour cctor
+        void InjectIntoStaticConstructor(ref bool WeavingFailed)
+        {
+            if (commands.Count == 0 && clientRpcs.Count == 0 && targetRpcs.Count == 0)
                 return;
 
             // find static constructor
@@ -241,19 +266,11 @@ namespace Mirror.Weaver
             if (cctor != null)
             {
                 // remove the return opcode from end of function. will add our own later.
-                if (cctor.Body.Instructions.Count != 0)
+                if (!RemoveFinalRetInstruction(cctor))
                 {
-                    Instruction retInstr = cctor.Body.Instructions[cctor.Body.Instructions.Count - 1];
-                    if (retInstr.OpCode == OpCodes.Ret)
-                    {
-                        cctor.Body.Instructions.RemoveAt(cctor.Body.Instructions.Count - 1);
-                    }
-                    else
-                    {
-                        Log.Error($"{netBehaviourSubclass.Name} has invalid class constructor", cctor);
-                        WeavingFailed = true;
-                        return;
-                    }
+                    Log.Error($"{netBehaviourSubclass.Name} has invalid class constructor", cctor);
+                    WeavingFailed = true;
+                    return;
                 }
             }
             else
@@ -267,9 +284,47 @@ namespace Mirror.Weaver
                         weaverTypes.Import(typeof(void)));
             }
 
+            ILProcessor cctorWorker = cctor.Body.GetILProcessor();
+
+            // register all commands in cctor
+            for (int i = 0; i < commands.Count; ++i)
+            {
+                CmdResult cmdResult = commands[i];
+                GenerateRegisterCommandDelegate(cctorWorker, weaverTypes.registerCommandDelegateReference, commandInvocationFuncs[i], cmdResult);
+            }
+
+            // register all client rpcs in cctor
+            for (int i = 0; i < clientRpcs.Count; ++i)
+            {
+                ClientRpcResult clientRpcResult = clientRpcs[i];
+                GenerateRegisterRemoteDelegate(cctorWorker, weaverTypes.registerRpcDelegateReference, clientRpcInvocationFuncs[i], clientRpcResult.method.Name);
+            }
+
+            // register all target rpcs in cctor
+            for (int i = 0; i < targetRpcs.Count; ++i)
+            {
+                GenerateRegisterRemoteDelegate(cctorWorker, weaverTypes.registerRpcDelegateReference, targetRpcInvocationFuncs[i], targetRpcs[i].Name);
+            }
+
+            // add final 'Ret' instruction to cctor
+            cctorWorker.Append(cctorWorker.Create(OpCodes.Ret));
+            if (!cctorFound)
+            {
+                netBehaviourSubclass.Methods.Add(cctor);
+            }
+
+            // in case class had no cctor, it might have BeforeFieldInit, so injected cctor would be called too late
+            netBehaviourSubclass.Attributes &= ~TypeAttributes.BeforeFieldInit;
+        }
+
+        // we need to inject several initializations into NetworkBehaviour ctor
+        void InjectIntoInstanceConstructor(ref bool WeavingFailed)
+        {
+            if (syncObjects.Count == 0)
+                return;
+
             // find instance constructor
             MethodDefinition ctor = netBehaviourSubclass.GetMethod(".ctor");
-
             if (ctor == null)
             {
                 Log.Error($"{netBehaviourSubclass.Name} has invalid constructor", netBehaviourSubclass);
@@ -277,62 +332,31 @@ namespace Mirror.Weaver
                 return;
             }
 
-            Instruction ret = ctor.Body.Instructions[ctor.Body.Instructions.Count - 1];
-            if (ret.OpCode == OpCodes.Ret)
-            {
-                ctor.Body.Instructions.RemoveAt(ctor.Body.Instructions.Count - 1);
-            }
-            else
+            // remove the return opcode from end of function. will add our own later.
+            if (!RemoveFinalRetInstruction(ctor))
             {
                 Log.Error($"{netBehaviourSubclass.Name} has invalid constructor", ctor);
                 WeavingFailed = true;
                 return;
             }
 
-            // TODO: find out if the order below matters. If it doesn't split code below into 2 functions
             ILProcessor ctorWorker = ctor.Body.GetILProcessor();
-            ILProcessor cctorWorker = cctor.Body.GetILProcessor();
 
-            for (int i = 0; i < commands.Count; ++i)
-            {
-                CmdResult cmdResult = commands[i];
-                GenerateRegisterCommandDelegate(cctorWorker, weaverTypes, weaverTypes.registerCommandDelegateReference, commandInvocationFuncs[i], cmdResult);
-            }
-
-            for (int i = 0; i < clientRpcs.Count; ++i)
-            {
-                ClientRpcResult clientRpcResult = clientRpcs[i];
-                GenerateRegisterRemoteDelegate(cctorWorker, weaverTypes, weaverTypes.registerRpcDelegateReference, clientRpcInvocationFuncs[i], clientRpcResult.method.Name);
-            }
-
-            for (int i = 0; i < targetRpcs.Count; ++i)
-            {
-                GenerateRegisterRemoteDelegate(cctorWorker, weaverTypes, weaverTypes.registerRpcDelegateReference, targetRpcInvocationFuncs[i], targetRpcs[i].Name);
-            }
-
+            // initialize all sync objects in ctor
             foreach (FieldDefinition fd in syncObjects)
             {
                 SyncObjectInitializer.GenerateSyncObjectInitializer(ctorWorker, weaverTypes, fd);
             }
 
-            cctorWorker.Append(cctorWorker.Create(OpCodes.Ret));
-            if (!cctorFound)
-            {
-                netBehaviourSubclass.Methods.Add(cctor);
-            }
-
-            // finish ctor
+            // add final 'Ret' instruction to ctor
             ctorWorker.Append(ctorWorker.Create(OpCodes.Ret));
-
-            // in case class had no cctor, it might have BeforeFieldInit, so injected cctor would be called too late
-            netBehaviourSubclass.Attributes &= ~TypeAttributes.BeforeFieldInit;
         }
 
         /*
             // This generates code like:
             NetworkBehaviour.RegisterCommandDelegate(base.GetType(), "CmdThrust", new NetworkBehaviour.CmdDelegate(ShipControl.InvokeCmdCmdThrust));
         */
-        void GenerateRegisterRemoteDelegate(ILProcessor worker, WeaverTypes weaverTypes, MethodReference registerMethod, MethodDefinition func, string cmdName)
+        void GenerateRegisterRemoteDelegate(ILProcessor worker, MethodReference registerMethod, MethodDefinition func, string cmdName)
         {
             worker.Emit(OpCodes.Ldtoken, netBehaviourSubclass);
             worker.Emit(OpCodes.Call, weaverTypes.getTypeFromHandleReference);
@@ -345,7 +369,7 @@ namespace Mirror.Weaver
             worker.Emit(OpCodes.Call, registerMethod);
         }
 
-        void GenerateRegisterCommandDelegate(ILProcessor worker, WeaverTypes weaverTypes, MethodReference registerMethod, MethodDefinition func, CmdResult cmdResult)
+        void GenerateRegisterCommandDelegate(ILProcessor worker, MethodReference registerMethod, MethodDefinition func, CmdResult cmdResult)
         {
             string cmdName = cmdResult.method.Name;
             bool requiresAuthority = cmdResult.requiresAuthority;
@@ -505,27 +529,27 @@ namespace Mirror.Weaver
             netBehaviourSubclass.Methods.Add(serialize);
         }
 
-        void DeserializeField(WeaverTypes weaverTypes, FieldDefinition syncVar, ILProcessor worker, MethodDefinition deserialize, ref bool WeavingFailed)
+        void DeserializeField(FieldDefinition syncVar, ILProcessor worker, MethodDefinition deserialize, ref bool WeavingFailed)
         {
             // check for Hook function
             MethodDefinition hookMethod = syncVarAttributeProcessor.GetHookMethod(netBehaviourSubclass, syncVar, ref WeavingFailed);
 
             if (syncVar.FieldType.IsDerivedFrom<NetworkBehaviour>())
             {
-                DeserializeNetworkBehaviourField(weaverTypes, syncVar, worker, deserialize, hookMethod, ref WeavingFailed);
+                DeserializeNetworkBehaviourField(syncVar, worker, deserialize, hookMethod, ref WeavingFailed);
             }
             else if (syncVar.FieldType.IsNetworkIdentityField())
             {
-                DeserializeNetworkIdentityField(weaverTypes, syncVar, worker, deserialize, hookMethod, ref WeavingFailed);
+                DeserializeNetworkIdentityField(syncVar, worker, deserialize, hookMethod, ref WeavingFailed);
             }
             else
             {
-                DeserializeNormalField(weaverTypes, syncVar, worker, deserialize, hookMethod, ref WeavingFailed);
+                DeserializeNormalField(syncVar, worker, deserialize, hookMethod, ref WeavingFailed);
             }
         }
 
         /// [SyncVar] GameObject/NetworkIdentity?
-        void DeserializeNetworkIdentityField(WeaverTypes weaverTypes, FieldDefinition syncVar, ILProcessor worker, MethodDefinition deserialize, MethodDefinition hookMethod, ref bool WeavingFailed)
+        void DeserializeNetworkIdentityField(FieldDefinition syncVar, ILProcessor worker, MethodDefinition deserialize, MethodDefinition hookMethod, ref bool WeavingFailed)
         {
             /*
             Generates code like:
@@ -625,7 +649,7 @@ namespace Mirror.Weaver
         }
 
         // [SyncVar] NetworkBehaviour
-        void DeserializeNetworkBehaviourField(WeaverTypes weaverTypes, FieldDefinition syncVar, ILProcessor worker, MethodDefinition deserialize, MethodDefinition hookMethod, ref bool WeavingFailed)
+        void DeserializeNetworkBehaviourField(FieldDefinition syncVar, ILProcessor worker, MethodDefinition deserialize, MethodDefinition hookMethod, ref bool WeavingFailed)
         {
             /*
             Generates code like:
@@ -725,9 +749,8 @@ namespace Mirror.Weaver
             }
         }
 
-
         // [SyncVar] int/float/struct/etc.?
-        void DeserializeNormalField(WeaverTypes weaverTypes, FieldDefinition syncVar, ILProcessor serWorker, MethodDefinition deserialize, MethodDefinition hookMethod, ref bool WeavingFailed)
+        void DeserializeNormalField(FieldDefinition syncVar, ILProcessor serWorker, MethodDefinition deserialize, MethodDefinition hookMethod, ref bool WeavingFailed)
         {
             /*
              Generates code like:
@@ -850,7 +873,7 @@ namespace Mirror.Weaver
 
             foreach (FieldDefinition syncVar in syncVars)
             {
-                DeserializeField(weaverTypes, syncVar, serWorker, serialize, ref WeavingFailed);
+                DeserializeField(syncVar, serWorker, serialize, ref WeavingFailed);
             }
 
             serWorker.Append(serWorker.Create(OpCodes.Ret));
@@ -876,7 +899,7 @@ namespace Mirror.Weaver
                 serWorker.Append(serWorker.Create(OpCodes.And));
                 serWorker.Append(serWorker.Create(OpCodes.Brfalse, varLabel));
 
-                DeserializeField(weaverTypes, syncVar, serWorker, serialize, ref WeavingFailed);
+                DeserializeField(syncVar, serWorker, serialize, ref WeavingFailed);
 
                 serWorker.Append(varLabel);
                 dirtyBit += 1;
