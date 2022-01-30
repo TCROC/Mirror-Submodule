@@ -1,5 +1,6 @@
 // base class for networking tests to make things easier.
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -29,6 +30,12 @@ namespace Mirror.Tests
         {
             NetworkClient.Shutdown();
             NetworkServer.Shutdown();
+
+            // some tests might modify NetworkServer.connections without ever
+            // starting the server.
+            // NetworkServer.Shutdown() only clears connections if it was started.
+            // so let's do it manually for proper test cleanup here.
+            NetworkServer.connections.Clear();
 
             foreach (GameObject go in instantiated)
                 if (go != null)
@@ -145,11 +152,39 @@ namespace Mirror.Tests
         }
 
         // fully connect client to local server
-        protected void ConnectClientBlocking()
+        // gives out the server's connection to client for convenience if needed
+        protected void ConnectClientBlocking(out NetworkConnectionToClient connectionToClient)
         {
             NetworkClient.Connect("127.0.0.1");
             UpdateTransport();
+
             Assert.That(NetworkServer.connections.Count, Is.EqualTo(1));
+            connectionToClient = NetworkServer.connections.Values.First();
+        }
+
+        // fully connect client to local server & authenticate
+        protected void ConnectClientBlockingAuthenticated(out NetworkConnectionToClient connectionToClient)
+        {
+            ConnectClientBlocking(out connectionToClient);
+
+            // authenticate server & client connections
+            connectionToClient.isAuthenticated = true;
+            NetworkClient.connection.isAuthenticated = true;
+        }
+
+        // fully connect client to local server & authenticate & set read
+        protected void ConnectClientBlockingAuthenticatedAndReady(out NetworkConnectionToClient connectionToClient)
+        {
+            ConnectClientBlocking(out connectionToClient);
+
+            // authenticate server & client connections
+            connectionToClient.isAuthenticated = true;
+            NetworkClient.connection.isAuthenticated = true;
+
+            // set ready
+            NetworkClient.Ready();
+            ProcessMessages();
+            Assert.That(connectionToClient.isReady, Is.True);
         }
 
         protected void UpdateTransport()
@@ -170,6 +205,15 @@ namespace Mirror.Tests
 
             // update transport so sent messages are received
             UpdateTransport();
+        }
+
+        // helper function to create local connection pair
+        protected void CreateLocalConnectionPair(out LocalConnectionToClient connectionToClient, out LocalConnectionToServer connectionToServer)
+        {
+            connectionToClient = new LocalConnectionToClient();
+            connectionToServer = new LocalConnectionToServer();
+            connectionToClient.connectionToServer = connectionToServer;
+            connectionToServer.connectionToClient = connectionToClient;
         }
     }
 }
