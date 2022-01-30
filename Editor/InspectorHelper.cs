@@ -57,9 +57,9 @@ namespace Mirror
             return field.IsPublic || IsSerializeField(field);
         }
 
-        public static bool IsSyncObject(this FieldInfo field)
+        public static bool ImplementsInterface<T>(this FieldInfo field)
         {
-            return typeof(SyncObject).IsAssignableFrom(field.FieldType);
+            return typeof(T).IsAssignableFrom(field.FieldType);
         }
 
         public static bool HasShowInInspector(this FieldInfo field)
@@ -68,7 +68,7 @@ namespace Mirror
             return fieldMarkers.Length > 0;
         }
 
-        public static bool IsVisibleSyncObject(this FieldInfo field)
+        public static bool IsVisibleInInspector(this FieldInfo field)
         {
             return field.IsPublic || HasShowInInspector(field);
         }
