@@ -115,10 +115,14 @@ namespace Mirror
 
         /// <summary>Set as dirty so that it's synced to clients again.</summary>
         // these are masks, not bit numbers, ie. 110011b not '2' for 2nd bit.
-        public void SetDirtyBit(ulong dirtyBit)
+        public void SetSyncVarDirtyBit(ulong dirtyBit)
         {
             syncVarDirtyBits |= dirtyBit;
         }
+
+        // DEPRECATED 2021-09-19
+        [Obsolete("SetDirtyBit was renamed to SetSyncVarDirtyBit because that's what it does")]
+        public void SetDirtyBit(ulong dirtyBit) => SetSyncVarDirtyBit(dirtyBit);
 
         // true if syncInterval elapsed and any SyncVar or SyncObject is dirty
         public bool IsDirty()
@@ -236,14 +240,14 @@ namespace Mirror
             // this was in Weaver before
             if (!NetworkServer.active)
             {
-                Debug.LogError("RPC Function " + rpcName + " called on Client.");
+                Debug.LogError($"RPC Function {rpcName} called on Client.");
                 return;
             }
 
             // This cannot use NetworkServer.active, as that is not specific to this object.
             if (!isServer)
             {
-                Debug.LogWarning("ClientRpc " + rpcName + " called on un-spawned object: " + name);
+                Debug.LogWarning($"ClientRpc {rpcName} called on un-spawned object: {name}");
                 return;
             }
 
@@ -258,7 +262,7 @@ namespace Mirror
                 payload = writer.ToArraySegment()
             };
 
-            NetworkServer.SendToReady(netIdentity, message, includeOwner, channelId);
+            NetworkServer.SendToReadyObservers(netIdentity, message, includeOwner, channelId);
         }
 
         protected void SendTargetRPCInternal(NetworkConnection conn, Type invokeClass, string rpcName, NetworkWriter writer, int channelId)
@@ -323,7 +327,7 @@ namespace Mirror
                     newNetId = identity.netId;
                     if (newNetId == 0)
                     {
-                        Debug.LogWarning("SetSyncVarGameObject GameObject " + newGameObject + " has a zero netId. Maybe it is not spawned yet?");
+                        Debug.LogWarning($"SetSyncVarGameObject GameObject {newGameObject} has a zero netId. Maybe it is not spawned yet?");
                     }
                 }
             }
@@ -347,13 +351,13 @@ namespace Mirror
                     newNetId = identity.netId;
                     if (newNetId == 0)
                     {
-                        Debug.LogWarning("SetSyncVarGameObject GameObject " + newGameObject + " has a zero netId. Maybe it is not spawned yet?");
+                        Debug.LogWarning($"SetSyncVarGameObject GameObject {newGameObject} has a zero netId. Maybe it is not spawned yet?");
                     }
                 }
             }
 
             // Debug.Log("SetSyncVar GameObject " + GetType().Name + " bit [" + dirtyBit + "] netfieldId:" + netIdField + "->" + newNetId);
-            SetDirtyBit(dirtyBit);
+            SetSyncVarDirtyBit(dirtyBit);
             // assign new one on the server, and in case we ever need it on client too
             gameObjectField = newGameObject;
             netIdField = newNetId;
@@ -387,7 +391,7 @@ namespace Mirror
                 newNetId = newIdentity.netId;
                 if (newNetId == 0)
                 {
-                    Debug.LogWarning("SetSyncVarNetworkIdentity NetworkIdentity " + newIdentity + " has a zero netId. Maybe it is not spawned yet?");
+                    Debug.LogWarning($"SetSyncVarNetworkIdentity NetworkIdentity {newIdentity} has a zero netId. Maybe it is not spawned yet?");
                 }
             }
 
@@ -408,12 +412,12 @@ namespace Mirror
                 newNetId = newIdentity.netId;
                 if (newNetId == 0)
                 {
-                    Debug.LogWarning("SetSyncVarNetworkIdentity NetworkIdentity " + newIdentity + " has a zero netId. Maybe it is not spawned yet?");
+                    Debug.LogWarning($"SetSyncVarNetworkIdentity NetworkIdentity {newIdentity} has a zero netId. Maybe it is not spawned yet?");
                 }
             }
 
             // Debug.Log("SetSyncVarNetworkIdentity NetworkIdentity " + GetType().Name + " bit [" + dirtyBit + "] netIdField:" + netIdField + "->" + newNetId);
-            SetDirtyBit(dirtyBit);
+            SetSyncVarDirtyBit(dirtyBit);
             netIdField = newNetId;
             // assign new one on the server, and in case we ever need it on client too
             identityField = newIdentity;
@@ -445,7 +449,7 @@ namespace Mirror
                 newComponentIndex = newBehaviour.ComponentIndex;
                 if (newNetId == 0)
                 {
-                    Debug.LogWarning("SetSyncVarNetworkIdentity NetworkIdentity " + newBehaviour + " has a zero netId. Maybe it is not spawned yet?");
+                    Debug.LogWarning($"SetSyncVarNetworkIdentity NetworkIdentity {newBehaviour} has a zero netId. Maybe it is not spawned yet?");
                 }
             }
 
@@ -468,13 +472,13 @@ namespace Mirror
                 componentIndex = newBehaviour.ComponentIndex;
                 if (newNetId == 0)
                 {
-                    Debug.LogWarning($"{nameof(SetSyncVarNetworkBehaviour)} NetworkIdentity " + newBehaviour + " has a zero netId. Maybe it is not spawned yet?");
+                    Debug.LogWarning($"{nameof(SetSyncVarNetworkBehaviour)} NetworkIdentity {newBehaviour} has a zero netId. Maybe it is not spawned yet?");
                 }
             }
 
             syncField = new NetworkBehaviourSyncVar(newNetId, componentIndex);
 
-            SetDirtyBit(dirtyBit);
+            SetSyncVarDirtyBit(dirtyBit);
 
             // assign new one on the server, and in case we ever need it on client too
             behaviourField = newBehaviour;
@@ -542,7 +546,7 @@ namespace Mirror
         protected void SetSyncVar<T>(T value, ref T fieldValue, ulong dirtyBit)
         {
             // Debug.Log("SetSyncVar " + GetType().Name + " bit [" + dirtyBit + "] " + fieldValue + "->" + value);
-            SetDirtyBit(dirtyBit);
+            SetSyncVarDirtyBit(dirtyBit);
             fieldValue = value;
         }
 

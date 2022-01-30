@@ -283,9 +283,33 @@ namespace Mirror
             SendToAll(message, channelId, true);
         }
 
+        // this is like SendToReadyObservers - but it doesn't check the ready flag on the connection.
+        // this is used for ObjectDestroy messages.
+        static void SendToObservers<T>(NetworkIdentity identity, T message, int channelId = Channels.Reliable)
+            where T : struct, NetworkMessage
+        {
+            // Debug.Log("Server.SendToObservers id:" + typeof(T));
+            if (identity == null || identity.observers == null || identity.observers.Count == 0)
+                return;
+
+            using (PooledNetworkWriter writer = NetworkWriterPool.GetWriter())
+            {
+                // pack message into byte[] once
+                MessagePacking.Pack(message, writer);
+                ArraySegment<byte> segment = writer.ToArraySegment();
+
+                foreach (NetworkConnection conn in identity.observers.Values)
+                {
+                    conn.Send(segment, channelId);
+                }
+
+                NetworkDiagnostics.OnSend(message, channelId, segment.Count, identity.observers.Count);
+            }
+        }
+
         /// <summary>Send a message to only clients which are ready with option to include the owner of the object identity</summary>
         // TODO put rpcs into NetworkServer.Update WorldState packet, then finally remove SendToReady!
-        public static void SendToReady<T>(NetworkIdentity identity, T message, bool includeOwner = true, int channelId = Channels.Reliable)
+        public static void SendToReadyObservers<T>(NetworkIdentity identity, T message, bool includeOwner = true, int channelId = Channels.Reliable)
             where T : struct, NetworkMessage
         {
             // Debug.Log("Server.SendToReady msgType:" + typeof(T));
@@ -313,37 +337,25 @@ namespace Mirror
             }
         }
 
+        // DEPRECATED 2021-09-19
+        [Obsolete("SendToReady(identity, message, ...) was renamed to SendToReadyObservers because that's what it does.")]
+        public static void SendToReady<T>(NetworkIdentity identity, T message, bool includeOwner = true, int channelId = Channels.Reliable)
+            where T : struct, NetworkMessage =>
+                SendToReadyObservers(identity, message, includeOwner, channelId);
+
         /// <summary>Send a message to only clients which are ready including the owner of the NetworkIdentity</summary>
         // TODO put rpcs into NetworkServer.Update WorldState packet, then finally remove SendToReady!
+        public static void SendToReadyObservers<T>(NetworkIdentity identity, T message, int channelId)
+            where T : struct, NetworkMessage
+        {
+            SendToReadyObservers(identity, message, true, channelId);
+        }
+
+        // DEPRECATED 2021-09-19
+        [Obsolete("SendToReady(identity, message, ...) was renamed to SendToReadyObservers because that's what it does.")]
         public static void SendToReady<T>(NetworkIdentity identity, T message, int channelId)
-            where T : struct, NetworkMessage
-        {
-            SendToReady(identity, message, true, channelId);
-        }
-
-        // this is like SendToReady - but it doesn't check the ready flag on the connection.
-        // this is used for ObjectDestroy messages.
-        static void SendToObservers<T>(NetworkIdentity identity, T message, int channelId = Channels.Reliable)
-            where T : struct, NetworkMessage
-        {
-            // Debug.Log("Server.SendToObservers id:" + typeof(T));
-            if (identity == null || identity.observers == null || identity.observers.Count == 0)
-                return;
-
-            using (PooledNetworkWriter writer = NetworkWriterPool.GetWriter())
-            {
-                // pack message into byte[] once
-                MessagePacking.Pack(message, writer);
-                ArraySegment<byte> segment = writer.ToArraySegment();
-
-                foreach (NetworkConnection conn in identity.observers.Values)
-                {
-                    conn.Send(segment, channelId);
-                }
-
-                NetworkDiagnostics.OnSend(message, channelId, segment.Count, identity.observers.Count);
-            }
-        }
+            where T : struct, NetworkMessage =>
+                SendToReadyObservers(identity, message, channelId);
 
         // transport events ////////////////////////////////////////////////////
         // called by transport
@@ -356,7 +368,7 @@ namespace Mirror
             // hashing which can be < 0 as well, so we need to allow < 0!
             if (connectionId == 0)
             {
-                Debug.LogError("Server.HandleConnect: invalid connectionId: " + connectionId + " . Needs to be != 0, because 0 is reserved for local player.");
+                Debug.LogError($"Server.HandleConnect: invalid connectionId: {connectionId} . Needs to be != 0, because 0 is reserved for local player.");
                 Transport.activeTransport.ServerDisconnect(connectionId);
                 return;
             }
@@ -512,7 +524,7 @@ namespace Mirror
                     Debug.LogError($"Still had {connection.unbatcher.BatchesCount} batches remaining after processing, even though processing was not interrupted by a scene change. This should never happen, as it would cause ever growing batches.\nPossible reasons:\n* A message didn't deserialize as much as it serialized\n*There was no message handler for a message id, so the reader wasn't read until the end.");
                 }
             }
-            else Debug.LogError("HandleData Unknown connectionId:" + connectionId);
+            else Debug.LogError($"HandleData Unknown connectionId:{connectionId}");
         }
 
         // called by transport
@@ -654,7 +666,7 @@ namespace Mirror
             NetworkIdentity identity = player.GetComponent<NetworkIdentity>();
             if (identity == null)
             {
-                Debug.LogWarning("AddPlayer: playerGameObject has no NetworkIdentity. Please add a NetworkIdentity to " + player);
+                Debug.LogWarning($"AddPlayer: playerGameObject has no NetworkIdentity. Please add a NetworkIdentity to {player}");
                 return false;
             }
 
@@ -712,13 +724,13 @@ namespace Mirror
             NetworkIdentity identity = player.GetComponent<NetworkIdentity>();
             if (identity == null)
             {
-                Debug.LogError("ReplacePlayer: playerGameObject has no NetworkIdentity. Please add a NetworkIdentity to " + player);
+                Debug.LogError($"ReplacePlayer: playerGameObject has no NetworkIdentity. Please add a NetworkIdentity to {player}");
                 return false;
             }
 
             if (identity.connectionToClient != null && identity.connectionToClient != conn)
             {
-                Debug.LogError("Cannot replace player for connection. New player is already owned by a different connection" + player);
+                Debug.LogError($"Cannot replace player for connection. New player is already owned by a different connection{player}");
                 return false;
             }
 
@@ -862,7 +874,7 @@ namespace Mirror
         {
             if (!spawned.TryGetValue(msg.netId, out NetworkIdentity identity))
             {
-                Debug.LogWarning("Spawned object not found when handling Command message [netId=" + msg.netId + "]");
+                Debug.LogWarning($"Spawned object not found when handling Command message [netId={msg.netId}]");
                 return;
             }
 
@@ -874,7 +886,7 @@ namespace Mirror
             bool requiresAuthority = commandInfo.requiresAuthority;
             if (requiresAuthority && identity.connectionToClient != conn)
             {
-                Debug.LogWarning("Command for object without authority [netId=" + msg.netId + "]");
+                Debug.LogWarning($"Command for object without authority [netId={msg.netId}]");
                 return;
             }
 
@@ -948,14 +960,14 @@ namespace Mirror
 
             if (!active)
             {
-                Debug.LogError("SpawnObject for " + obj + ", NetworkServer is not active. Cannot spawn objects without an active server.");
+                Debug.LogError($"SpawnObject for {obj}, NetworkServer is not active. Cannot spawn objects without an active server.");
                 return;
             }
 
             NetworkIdentity identity = obj.GetComponent<NetworkIdentity>();
             if (identity == null)
             {
-                Debug.LogError("SpawnObject " + obj + " has no NetworkIdentity. Please add a NetworkIdentity to " + obj);
+                Debug.LogError($"SpawnObject {obj} has no NetworkIdentity. Please add a NetworkIdentity to {obj}");
                 return;
             }
 
@@ -1086,6 +1098,7 @@ namespace Mirror
                 if (ValidateSceneObject(identity))
                     Spawn(identity.gameObject);
             }
+
             return true;
         }
 
@@ -1550,7 +1563,7 @@ namespace Mirror
                 // always call Remove in OnObjectDestroy everywhere.
                 // if it does have null then someone used
                 // GameObject.Destroy instead of NetworkServer.Destroy.
-                else Debug.LogWarning("Found 'null' entry in observing list for connectionId=" + connection.connectionId + ". Please call NetworkServer.Destroy to destroy networked objects. Don't use GameObject.Destroy.");
+                else Debug.LogWarning($"Found 'null' entry in observing list for connectionId={connection.connectionId}. Please call NetworkServer.Destroy to destroy networked objects. Don't use GameObject.Destroy.");
             }
         }
 
