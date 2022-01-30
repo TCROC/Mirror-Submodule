@@ -393,9 +393,9 @@ namespace Mirror.Weaver
                         ProcessSyncVar(td, fd, syncVarNetIds, 1L << dirtyBitCounter, ref WeavingFailed);
                         dirtyBitCounter += 1;
 
-                        if (dirtyBitCounter == SyncVarLimit)
+                        if (dirtyBitCounter > SyncVarLimit)
                         {
-                            Log.Error($"{td.Name} has too many SyncVars. Consider refactoring your class into multiple components", td);
+                            Log.Error($"{td.Name} has > {SyncVarLimit} SyncVars. Consider refactoring your class into multiple components", td);
                             WeavingFailed = true;
                             continue;
                         }
