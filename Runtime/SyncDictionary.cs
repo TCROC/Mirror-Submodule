@@ -68,6 +68,10 @@ namespace Mirror
         // this should be called after a successful sync
         public void ClearChanges() => changes.Clear();
 
+        // Deprecated 2021-09-17
+        [Obsolete("Deprecated: Use ClearChanges instead.")]
+        public void Flush() => changes.Clear();
+
         public SyncIDictionary(IDictionary<TKey, TValue> objects)
         {
             this.objects = objects;
@@ -309,9 +313,9 @@ namespace Mirror
     {
         public SyncDictionary() : base(new Dictionary<TKey, TValue>()) {}
         public SyncDictionary(IEqualityComparer<TKey> eq) : base(new Dictionary<TKey, TValue>(eq)) {}
+        public SyncDictionary(IDictionary<TKey, TValue> d) : base(new Dictionary<TKey, TValue>(d)) {}
         public new Dictionary<TKey, TValue>.ValueCollection Values => ((Dictionary<TKey, TValue>)objects).Values;
         public new Dictionary<TKey, TValue>.KeyCollection Keys => ((Dictionary<TKey, TValue>)objects).Keys;
         public new Dictionary<TKey, TValue>.Enumerator GetEnumerator() => ((Dictionary<TKey, TValue>)objects).GetEnumerator();
-
     }
 }
