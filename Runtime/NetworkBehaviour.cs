@@ -59,6 +59,9 @@ namespace Mirror
         // SyncLists, SyncSets, etc.
         protected readonly List<SyncObject> syncObjects = new List<SyncObject>();
 
+        // NetworkBehaviourInspector needs to know if we have SyncObjects
+        internal bool HasSyncObjects() => syncObjects.Count > 0;
+
         // NetworkIdentity based values set from NetworkIdentity.Awake(),
         // which is way more simple and way faster than trying to figure out
         // component index from in here by searching all NetworkComponents.

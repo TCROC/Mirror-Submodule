@@ -11,10 +11,6 @@ namespace Mirror
     [CanEditMultipleObjects]
     public class NetworkBehaviourInspector : Editor
     {
-        /// <summary>
-        /// List of all visible syncVars in target class
-        /// </summary>
-        protected List<string> syncVarNames = new List<string>();
         bool syncsAnything;
         SyncListDrawer syncListDrawer;
 
@@ -44,10 +40,7 @@ namespace Mirror
             // search for SyncObjects manually.
             // Any SyncObject should be added to syncObjects when unity creates an
             // object so we can check length of list so see if sync objects exists
-            FieldInfo syncObjectsField = scriptClass.GetField("syncObjects", BindingFlags.NonPublic | BindingFlags.Instance);
-            List<SyncObject> syncObjects = (List<SyncObject>)syncObjectsField.GetValue(serializedObject.targetObject);
-
-            return syncObjects.Count > 0;
+            return ((NetworkBehaviour)serializedObject.targetObject).HasSyncObjects();
         }
 
         void OnEnable()
@@ -59,15 +52,6 @@ namespace Mirror
             if (!(target is NetworkBehaviour)) { return; }
 
             Type scriptClass = target.GetType();
-
-            syncVarNames = new List<string>();
-            foreach (FieldInfo field in InspectorHelper.GetAllFields(scriptClass, typeof(NetworkBehaviour)))
-            {
-                if (field.IsSyncVar() && field.IsVisibleField())
-                {
-                    syncVarNames.Add(field.Name);
-                }
-            }
 
             syncListDrawer = new SyncListDrawer(serializedObject.targetObject);
 
