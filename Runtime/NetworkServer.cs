@@ -762,7 +762,12 @@ namespace Mirror
 
             Respawn(identity);
 
-            if (!keepAuthority)
+            if (keepAuthority)
+                // This needs to be sent to clear isLocalPlayer on
+                // client while keeping hasAuthority true
+                SendChangeOwnerMessage(previousPlayer, conn);
+            else
+                // This clears both isLocalPlayer and hasAuthority on client
                 previousPlayer.RemoveClientAuthority();
 
             return true;
@@ -955,7 +960,12 @@ namespace Mirror
 
             //Debug.Log($"Server SendChangeOwnerMessage: name={identity.name} netid={identity.netId}");
 
-            conn.Send(new ChangeOwnerMessage { netId = identity.netId, isOwner = identity.connectionToClient == conn });
+            conn.Send(new ChangeOwnerMessage
+            {
+                netId = identity.netId,
+                isOwner = identity.connectionToClient == conn,
+                isLocalPlayer = conn.identity == identity
+            });
         }
 
         static void SpawnObject(GameObject obj, NetworkConnection ownerConnection)
@@ -1235,6 +1245,8 @@ namespace Mirror
 
         static void DestroyObject(NetworkIdentity identity, DestroyMode mode)
         {
+            // Debug.Log($"DestroyObject instance:{identity.netId}");
+
             if (aoi)
             {
                 // This calls user code which might throw exceptions
@@ -1248,7 +1260,8 @@ namespace Mirror
                     Debug.LogException(e);
                 }
             }
-            // Debug.Log($"DestroyObject instance:{identity.netId}");
+
+            // remove from NetworkServer (this) dictionary
             spawned.Remove(identity.netId);
 
             identity.connectionToClient?.RemoveOwnedObject(identity);
@@ -1266,6 +1279,9 @@ namespace Mirror
                 // NotifyAuthority which invokes OnStopAuthority if hasAuthority.
                 identity.hasAuthority = false;
                 identity.NotifyAuthority();
+
+                // remove from NetworkClient dictionary
+                NetworkClient.spawned.Remove(identity.netId);
             }
 
             // we are on the server. call OnStopServer.
