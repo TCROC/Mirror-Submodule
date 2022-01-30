@@ -308,17 +308,20 @@ namespace Mirror
                     // message in a batch are NOT length prefixed to save bandwidth.
                     // every message needs to be handled and read until the end.
                     // otherwise it would overlap into the next message.
-                    // => need to error and disconnect to avoid undefined behaviour.
+                    // => need to warn and disconnect to avoid undefined behaviour.
                     // => WARNING, not error. can happen if attacker sends random data.
-                    Debug.LogWarning($"Closed connection. Unknown message id: {msgType}. This can happen if no handler was registered for this message.");
-                    connection.Disconnect();
+                    Debug.LogWarning($"Unknown message id: {msgType}. This can happen if no handler was registered for this message.");
+                    // simply return false. caller is responsible for disconnecting.
+                    //connection.Disconnect();
                     return false;
                 }
             }
             else
             {
-                Debug.LogError("Closed connection: " + connection + ". Invalid message header.");
-                connection.Disconnect();
+                // => WARNING, not error. can happen if attacker sends random data.
+                Debug.LogWarning("Invalid message header.");
+                // simply return false. caller is responsible for disconnecting.
+                //connection.Disconnect();
                 return false;
             }
         }
@@ -360,12 +363,25 @@ namespace Mirror
 
                         // handle message
                         if (!UnpackAndInvoke(reader, channelId))
-                            break;
+                        {
+                            // warn, disconnect and return if failed
+                            // -> warning because attackers might send random data
+                            // -> messages in a batch aren't length prefixed.
+                            //    failing to read one would cause undefined
+                            //    behaviour for every message afterwards.
+                            //    so we need to disconnect.
+                            // -> return to avoid the below unbatches.count error.
+                            //    we already disconnected and handled it.
+                            Debug.LogWarning($"NetworkClient: failed to unpack and invoke message. Disconnecting.");
+                            connection.Disconnect();
+                            return;
+                        }
                     }
                     // otherwise disconnect
                     else
                     {
-                        Debug.LogError($"NetworkClient: received Message was too short (messages should start with message id)");
+                        // WARNING, not error. can happen if attacker sends random data.
+                        Debug.LogWarning($"NetworkClient: received Message was too short (messages should start with message id)");
                         connection.Disconnect();
                         return;
                     }
