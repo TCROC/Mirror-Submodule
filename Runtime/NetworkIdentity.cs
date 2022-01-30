@@ -1053,32 +1053,9 @@ namespace Mirror
             }
 
             NetworkBehaviour invokeComponent = NetworkBehaviours[componentIndex];
-            if (!RemoteProcedureCalls.InvokeHandlerDelegate(functionHash, remoteCallType, reader, invokeComponent, senderConnection))
+            if (!RemoteProcedureCalls.Invoke(functionHash, remoteCallType, reader, invokeComponent, senderConnection))
             {
                 Debug.LogError($"Found no receiver for incoming {remoteCallType} [{functionHash}] on {gameObject.name}, the server and client should have the same NetworkBehaviour instances [netId={netId}].");
-            }
-        }
-
-        // Runs on server
-        internal CommandInfo GetCommandInfo(int componentIndex, int cmdHash)
-        {
-            // check if unity object has been destroyed
-            if (this == null)
-            {
-                // error can be logged later
-                return default;
-            }
-
-            // find the right component to invoke the function on
-            if (0 <= componentIndex && componentIndex < NetworkBehaviours.Length)
-            {
-                NetworkBehaviour invokeComponent = NetworkBehaviours[componentIndex];
-                return RemoteProcedureCalls.GetCommandInfo(cmdHash, invokeComponent);
-            }
-            else
-            {
-                // error can be logged later
-                return default;
             }
         }
 
