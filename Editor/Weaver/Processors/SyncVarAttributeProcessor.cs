@@ -5,9 +5,9 @@ using Mono.CecilX.Cil;
 
 namespace Mirror.Weaver
 {
-    // Processes [SyncVar] in NetworkBehaviour
+    // Processes [SyncVar] attribute fields in NetworkBehaviour
     // not static, because ILPostProcessor is multithreaded
-    public class SyncVarProcessor
+    public class SyncVarAttributeProcessor
     {
         // ulong = 64 bytes
         const int SyncVarLimit = 64;
@@ -20,7 +20,7 @@ namespace Mirror.Weaver
         string HookParameterMessage(string hookName, TypeReference ValueType) =>
             $"void {hookName}({ValueType} oldValue, {ValueType} newValue)";
 
-        public SyncVarProcessor(AssemblyDefinition assembly, WeaverTypes weaverTypes, SyncVarAccessLists syncVarAccessLists, Logger Log)
+        public SyncVarAttributeProcessor(AssemblyDefinition assembly, WeaverTypes weaverTypes, SyncVarAccessLists syncVarAccessLists, Logger Log)
         {
             this.assembly = assembly;
             this.weaverTypes = weaverTypes;
@@ -161,10 +161,12 @@ namespace Mirror.Weaver
             // if (!SyncVarEqual(value, ref playerData))
             Instruction endOfMethod = worker.Create(OpCodes.Nop);
 
-            // this
-            worker.Emit(OpCodes.Ldarg_0);
+            // NOTE: SyncVar...Equal functions are static.
+            // don't Emit Ldarg_0 aka 'this'.
+
             // new value to set
             worker.Emit(OpCodes.Ldarg_1);
+
             // reference to field to set
             // make generic version of SetSyncVar with field type
             if (fd.FieldType.Is<UnityEngine.GameObject>())

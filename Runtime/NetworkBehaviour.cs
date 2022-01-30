@@ -320,10 +320,7 @@ namespace Mirror
         }
 
         // helper function for [SyncVar] GameObjects.
-        // IMPORTANT: keep as 'protected', not 'internal', otherwise Weaver
-        //            can't resolve it
-        // TODO make this static and adjust weaver to find it
-        protected bool SyncVarGameObjectEqual(GameObject newGameObject, uint netIdField)
+        internal static bool SyncVarGameObjectEqual(GameObject newGameObject, uint netIdField)
         {
             uint newNetId = 0;
             if (newGameObject != null)
@@ -388,9 +385,7 @@ namespace Mirror
         }
 
         // helper function for [SyncVar] NetworkIdentities.
-        // IMPORTANT: keep as 'protected', not 'internal', otherwise Weaver
-        //            can't resolve it
-        protected bool SyncVarNetworkIdentityEqual(NetworkIdentity newIdentity, uint netIdField)
+        internal static bool SyncVarNetworkIdentityEqual(NetworkIdentity newIdentity, uint netIdField)
         {
             uint newNetId = 0;
             if (newIdentity != null)
@@ -446,7 +441,7 @@ namespace Mirror
             return identityField;
         }
 
-        protected bool SyncVarNetworkBehaviourEqual<T>(T newBehaviour, NetworkBehaviourSyncVar syncField) where T : NetworkBehaviour
+        protected static bool SyncVarNetworkBehaviourEqual<T>(T newBehaviour, NetworkBehaviourSyncVar syncField) where T : NetworkBehaviour
         {
             uint newNetId = 0;
             int newComponentIndex = 0;
@@ -543,7 +538,7 @@ namespace Mirror
             }
         }
 
-        protected bool SyncVarEqual<T>(T value, ref T fieldValue)
+        protected static bool SyncVarEqual<T>(T value, ref T fieldValue)
         {
             // newly initialized or changed value?
             // value.Equals(fieldValue) allocates without 'where T : IEquatable'
