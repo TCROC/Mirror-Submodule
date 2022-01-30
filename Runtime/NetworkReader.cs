@@ -77,7 +77,7 @@ namespace Mirror
 #if UNITY_EDITOR
             if (!UnsafeUtility.IsBlittable(typeof(T)))
             {
-                throw new ArgumentException(typeof(T) + " is not blittable!");
+                throw new ArgumentException($"{typeof(T)} is not blittable!");
             }
 #endif
 
@@ -110,7 +110,7 @@ namespace Mirror
 
         // blittable'?' template for code reuse
         // note: bool isn't blittable. need to read as byte.
-        internal unsafe T? ReadBlittableNullable<T>()
+        internal T? ReadBlittableNullable<T>()
             where T : unmanaged =>
                 ReadByte() != 0 ? ReadBlittable<T>() : default(T?);
 
