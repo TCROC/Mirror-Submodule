@@ -57,8 +57,11 @@ namespace Mirror
         /// <summary>Check if client is connected (after connecting).</summary>
         public static bool isConnected => connectState == ConnectState.Connected;
 
-        /// <summary>NetworkClient can connect to local server in host mode too</summary>
-        public static bool isLocalClient => connection is LocalConnectionToServer;
+        /// <summary>True if client is running in host mode.</summary>
+        public static bool isHostClient => connection is LocalConnectionToServer;
+        // DEPRECATED 2021-05-26
+        [Obsolete("isLocalClient was renamed to isHostClient because that's what it actually means.")]
+        public static bool isLocalClient => isHostClient;
 
         // OnConnected / OnDisconnected used to be NetworkMessages that were
         // invoked. this introduced a bug where external clients could send
@@ -109,7 +112,7 @@ namespace Mirror
                 // host mode doesn't need spawning
                 RegisterHandler<ObjectSpawnFinishedMessage>(msg => {});
                 // host mode doesn't need state updates
-                RegisterHandler<UpdateVarsMessage>(msg => {});
+                RegisterHandler<EntityStateMessage>(msg => {});
             }
             else
             {
@@ -119,7 +122,7 @@ namespace Mirror
                 RegisterHandler<SpawnMessage>(OnSpawn);
                 RegisterHandler<ObjectSpawnStartedMessage>(OnObjectSpawnStarted);
                 RegisterHandler<ObjectSpawnFinishedMessage>(OnObjectSpawnFinished);
-                RegisterHandler<UpdateVarsMessage>(OnUpdateVarsMessage);
+                RegisterHandler<EntityStateMessage>(OnEntityStateMessage);
             }
             RegisterHandler<RpcMessage>(OnRPCMessage);
         }
@@ -1145,7 +1148,7 @@ namespace Mirror
         }
 
         // client-only mode callbacks //////////////////////////////////////////
-        static void OnUpdateVarsMessage(UpdateVarsMessage message)
+        static void OnEntityStateMessage(EntityStateMessage message)
         {
             // Debug.Log("NetworkClient.OnUpdateVarsMessage " + msg.netId);
             if (NetworkIdentity.spawned.TryGetValue(message.netId, out NetworkIdentity localObject) && localObject != null)
