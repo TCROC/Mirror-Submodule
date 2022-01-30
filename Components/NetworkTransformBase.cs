@@ -151,8 +151,10 @@ namespace Mirror
             {
                 // Reader length is checked here, 12 is used as thats the current Vector3 (3 floats) amount.
                 // In rare cases people may do mis-matched builds, log useful warning message, and then do not process missing scale data.
-                if (reader.Length >= 12) { temp.localScale = reader.ReadVector3(); }
-                else { Debug.LogWarning("Reader length does not contain enough data for a scale, please check that both server and client builds syncScale booleans match.", this); }
+                if (reader.Length >= 12)
+                    temp.localScale = reader.ReadVector3();
+                else
+                    Debug.LogWarning("Reader length does not contain enough data for a scale, please check that both server and client builds syncScale booleans match.", this);
             }
 
             // movement speed: based on how far it moved since last time
@@ -316,7 +318,7 @@ namespace Mirror
             {
                 return goal.localScale;
             }
-            else if (interpolateScale && start != null )
+            else if (interpolateScale && start != null)
             {
                 float t = CurrentInterpolationFactor(start, goal);
                 return Vector3.Lerp(start.localScale, goal.localScale, t);
@@ -553,11 +555,15 @@ namespace Mirror
         void OnDrawGizmos()
         {
             // draw start and goal points
-            if (start != null) DrawDataPointGizmo(start, Color.gray);
-            if (goal != null) DrawDataPointGizmo(goal, Color.white);
+            if (start != null)
+                DrawDataPointGizmo(start, Color.gray);
+
+            if (goal != null)
+                DrawDataPointGizmo(goal, Color.white);
 
             // draw line between them
-            if (start != null && goal != null) DrawLineBetweenDataPoints(start, goal, Color.cyan);
+            if (start != null && goal != null)
+                DrawLineBetweenDataPoints(start, goal, Color.cyan);
         }
     }
 }
