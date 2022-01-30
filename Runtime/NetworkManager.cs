@@ -23,7 +23,7 @@ namespace Mirror
         [Tooltip("Should the Network Manager object be persisted through scene changes?")]
         public bool dontDestroyOnLoad = true;
 
-           // Deprecated 2021-03-10
+        // Deprecated 2021-03-10
         // Temporary bool to allow Network Manager to persist to offline scene
         // Based on Discord convo, BigBox is invoking StopHost in startup sequence, bouncing the server and clients back to offline scene, which resets Network Manager.
         // Request is for a checkbox to persist Network Manager to offline scene, despite the collision and warning.
@@ -645,10 +645,6 @@ namespace Mirror
             }
         }
 
-        // Deprecated 2021-07-21
-        [Obsolete("Renamed to ConfigureHeadlessFrameRate()")]
-        public virtual void ConfigureServerFrameRate() {}
-
         /// <summary>Set the frame rate for a headless builds. Override to disable or modify.</summary>
         // useful for dedicated servers.
         // useful for headless benchmark clients.
@@ -658,11 +654,6 @@ namespace Mirror
             Application.targetFrameRate = serverTickRate;
             // Debug.Log($"Server Tick Rate set to {Application.targetFrameRate} Hz.");
 #endif
-
-            // call the obsolete function in case someone did anything important
-#pragma warning disable 618
-            ConfigureServerFrameRate();
-#pragma warning restore 618
         }
 
         bool InitializeSingleton()
