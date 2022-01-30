@@ -75,7 +75,7 @@ namespace Mirror.Authenticators
         /// <param name="msg">The message payload</param>
         public void OnAuthRequestMessage(NetworkConnection conn, AuthRequestMessage msg)
         {
-            // Debug.LogFormat(LogType.Log, "Authentication Request: {0} {1}", msg.authUsername, msg.authPassword);
+            //Debug.Log($"Authentication Request: {msg.authUsername} {msg.authPassword}");
 
             if (connectionsPendingDisconnect.Contains(conn)) return;
 
@@ -111,7 +111,7 @@ namespace Mirror.Authenticators
                 conn.isAuthenticated = false;
 
                 // disconnect the client after 1 second so that response message gets delivered
-                StartCoroutine(DelayedDisconnect(conn, 1));
+                StartCoroutine(DelayedDisconnect(conn, 1f));
             }
         }
 
@@ -174,7 +174,7 @@ namespace Mirror.Authenticators
         {
             if (msg.code == 100)
             {
-                // Debug.LogFormat(LogType.Log, "Authentication Response: {0}", msg.message);
+                //Debug.Log($"Authentication Response: {msg.message}");
 
                 // Authentication has been accepted
                 ClientAccept();
