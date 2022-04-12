@@ -1136,6 +1136,12 @@ namespace Mirror
         {
             //Debug.Log("NetworkManager.OnServerAddPlayer");
 
+            if (!conn.isAuthenticated)
+            {
+                Debug.LogError("The connection has not been authenticated.");
+                return;
+            }
+
             if (autoCreatePlayer && playerPrefab == null)
             {
                 Debug.LogError("The PlayerPrefab is empty on the NetworkManager. Please setup a PlayerPrefab object.");
